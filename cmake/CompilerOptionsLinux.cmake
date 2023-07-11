@@ -10,7 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 set(SANITIZERS_FLAGS -fsanitize=address -fsanitize=undefined)
 #set(SANITIZERS_FLAGS)
 
-set(DEBUG_FLAGS -ggdb -O0 ${SANITIZERS_FLAGS})
+set(DEBUG_FLAGS -ggdb -O0 ${SANITIZERS_FLAGS} -Wno-unused-parameter)
 
 add_compile_options(-Wall -Wextra -Werror -pedantic ${DEBUG_FLAGS})
 
