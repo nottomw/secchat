@@ -4,6 +4,9 @@
 
 int main(int argc, char **argv)
 {
+    (void)argc;
+    (void)argv;
+
     Crypto crypto;
     if (!crypto.init())
     {
