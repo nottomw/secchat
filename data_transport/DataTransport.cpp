@@ -34,10 +34,6 @@ bool DataTransport::receiveBlocking(uint8_t *const buffer,
                                     const uint32_t bufferSizeMax,
                                     uint32_t *const bufferReceivedLen)
 {
-    (void)buffer;
-    (void)bufferReceivedLen;
-    (void)bufferSizeMax;
-
     *bufferReceivedLen = 0U;
 
     {
