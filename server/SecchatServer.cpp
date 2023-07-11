@@ -30,6 +30,8 @@ int main(int argc, char **argv)
         recvOk = tr.receiveBlocking(&buf[0], 1024, &recvSize);
     } while (!recvOk);
 
+    printf("Unlocked\n");
+
     if (recvOk)
     {
         printf("Receive done '%s'...\n", buf);
