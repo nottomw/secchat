@@ -18,6 +18,7 @@ DataTransport::DataTransport(const uint16_t port)
 
 DataTransport::~DataTransport()
 {
+    // TODO: stop the thread
     mIoContextThread.join();
 }
 
