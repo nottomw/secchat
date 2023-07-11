@@ -92,10 +92,8 @@ Session::Session(Session &&s)
 
 void Session::start()
 {
-    auto self(shared_from_this());
-
     mSocket.async_read_some(asio::buffer(mRawBuffer, 1024), //
-                            [this, self](std::error_code ec, std::size_t length) {
+                            [this](std::error_code ec, std::size_t length) {
                                 if (!ec)
                                 {
                                     ReceivedData data;

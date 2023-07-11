@@ -5,7 +5,7 @@
 #include <deque>
 #include <mutex>
 
-class Session : public std::enable_shared_from_this<Session>
+class Session
 {
 public:
     Session(asio::ip::tcp::socket &&s);
