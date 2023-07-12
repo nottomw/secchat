@@ -10,6 +10,7 @@ DataTransport::DataTransport()
     : mServerRunning(true)
     , mIoContext{}
     , mAcceptor{}
+    , mResolver{}
     , mSessionsMutex{}
     , mSessions{}
 {
@@ -19,7 +20,10 @@ DataTransport::~DataTransport()
 {
     mIoContext.stop();
 
-    mIoContextThread.join();
+    if (mIoContextThread.joinable())
+    {
+        mIoContextThread.join();
+    }
 }
 
 void DataTransport::serve(const uint16_t port)
@@ -31,6 +35,36 @@ void DataTransport::serve(const uint16_t port)
         asio::ip::tcp::endpoint{asio::ip::tcp::v4(), port});
 
     acceptHandler();
+
+    mIoContextThread = std::thread{[this] { mIoContext.run(); }};
+}
+
+void DataTransport::onServerConnect(const DataTransport::FnOnConnectHandler handler)
+{
+    mOnConnectHandler = handler;
+}
+
+void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
+{
+    mResolver = std::make_shared<asio::ip::tcp::resolver>(mIoContext);
+
+    auto endpoints = mResolver->resolve(ipAddr, std::to_string(port));
+
+    for (const auto &ep : endpoints)
+    {
+        printf("Connecting to endpoint: %s\n", ep.host_name().c_str());
+    }
+
+    asio::ip::tcp::socket sock(mIoContext);
+    asio::connect(sock, endpoints);
+
+    auto session = std::make_shared<Session>(std::move(sock));
+    session->start();
+
+    {
+        std::lock_guard<std::mutex> l{mSessionsMutex};
+        mSessions.push_back(std::move(session));
+    }
 
     mIoContextThread = std::thread{[this] { mIoContext.run(); }};
 }
@@ -88,6 +122,8 @@ void DataTransport::acceptHandler()
                     std::lock_guard<std::mutex> l{mSessionsMutex};
                     mSessions.push_back(std::move(session));
                 }
+
+                mOnConnectHandler();
             }
         }
 

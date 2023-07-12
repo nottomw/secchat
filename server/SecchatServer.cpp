@@ -19,33 +19,40 @@ int main(int argc, char **argv)
     DataTransport tr;
     tr.serve(12345);
 
-    printf("Serve returned...");
-
-    uint8_t buf[1024];
-    uint32_t recvSize = 0;
-
     uint8_t prompt[] = {'-', '-', '>', ' '};
 
-    tr.sendBlocking(prompt, sizeof(prompt));
+    tr.onServerConnect([&] { tr.sendBlocking(prompt, sizeof(prompt)); });
 
-    bool shouldReceive = true;
-    while (shouldReceive)
-    {
-        const bool recvOk = tr.receiveBlocking(&buf[0], 1024, &recvSize);
-        if (recvOk)
+    bool readerShouldRun = true;
+    std::thread chatReader{[&]() {
+        while (readerShouldRun)
         {
-            printf("Receive done:\n");
-            for (uint32_t i = 0; i < recvSize; ++i)
-            {
-                printf("%c ", buf[i]);
-            }
-            printf("\n");
+            uint8_t rawBuf[1024];
+            uint32_t recvdLen = 0;
+            const bool dataOk = tr.receiveBlocking(rawBuf, 1024, &recvdLen);
 
-            tr.sendBlocking(prompt, sizeof(prompt));
+            if (dataOk)
+            {
+                printf("[server] received packet: ");
+                for (size_t i = 0; i < recvdLen; ++i)
+                {
+                    printf("%c", rawBuf[i]);
+                }
+                printf("\n");
+                fflush(stdout);
+
+                tr.sendBlocking(prompt, sizeof(prompt));
+            }
         }
+    }};
+
+    while (true)
+    {
+        // nothing...
     }
 
-    // TODO: join threads
+    readerShouldRun = false;
+    chatReader.join();
 
     return 0;
 }
