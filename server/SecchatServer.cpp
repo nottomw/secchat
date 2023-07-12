@@ -24,21 +24,19 @@ int main(int argc, char **argv)
     uint8_t buf[1024];
     uint32_t recvSize = 0;
 
-    bool recvOk = false;
-    do
+    bool shouldReceive = true;
+    while (shouldReceive)
     {
-        recvOk = tr.receiveBlocking(&buf[0], 1024, &recvSize);
-    } while (!recvOk);
-
-    printf("Unlocked\n");
-
-    if (recvOk)
-    {
-        printf("Receive done '%s'...\n", buf);
-    }
-    else
-    {
-        printf("Receive fail\n");
+        const bool recvOk = tr.receiveBlocking(&buf[0], 1024, &recvSize);
+        if (recvOk)
+        {
+            printf("Receive done:\n");
+            for (uint32_t i = 0; i < recvSize; ++i)
+            {
+                printf("%c ", buf[i]);
+            }
+            printf("\n");
+        }
     }
 
     // TODO: join threads

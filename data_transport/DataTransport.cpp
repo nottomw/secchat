@@ -18,7 +18,8 @@ DataTransport::DataTransport(const uint16_t port)
 
 DataTransport::~DataTransport()
 {
-    // TODO: stop the thread
+    mIoContext.stop();
+
     mIoContextThread.join();
 }
 
@@ -100,8 +101,12 @@ void Session::start()
                                     memcpy(data.buffer, mRawBuffer, length);
                                     data.bufferLen = length;
 
-                                    std::lock_guard<std::mutex> l{mReceivedDataMutex};
-                                    mReceivedData.push_back(std::move(data));
+                                    {
+                                        std::lock_guard<std::mutex> l{mReceivedDataMutex};
+                                        mReceivedData.push_back(std::move(data));
+                                    }
+
+                                    start();
                                 }
                             } //
     );
