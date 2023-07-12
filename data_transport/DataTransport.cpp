@@ -37,7 +37,17 @@ void DataTransport::serve(const uint16_t port)
 
 bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen)
 {
-    // TODO: send to all sockets?
+    // sending to all session sockets here, naive approach
+
+    for (auto &it : mSessions)
+    {
+        auto &sock = it->getSocket();
+
+        auto buf = asio::buffer(buffer, bufferLen);
+        size_t wrote = asio::write(sock, buf);
+        assert(wrote == bufferLen);
+    }
+
     return true;
 }
 
@@ -121,6 +131,11 @@ void Session::start()
     );
 }
 
+asio::ip::tcp::socket &Session::getSocket()
+{
+    return mSocket;
+}
+
 bool Session::getData(uint8_t *const buffer, const uint32_t bufferSizeMax, uint32_t *const bufferReceivedLen)
 {
     {
@@ -129,7 +144,7 @@ bool Session::getData(uint8_t *const buffer, const uint32_t bufferSizeMax, uint3
         {
             ReceivedData &dat = mReceivedData.front();
 
-            // TODO: read all data available data...
+            // TODO: read all available data up to max size of buffer...
             assert(dat.bufferLen < bufferSizeMax);
 
             memcpy(buffer, dat.buffer, dat.bufferLen);

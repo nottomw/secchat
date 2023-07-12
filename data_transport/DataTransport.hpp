@@ -13,6 +13,7 @@ public:
 
     void start();
 
+    asio::ip::tcp::socket &getSocket();
     bool getData(uint8_t *const buffer, const uint32_t bufferSizeMAx, uint32_t *const bufferReceivedLen);
 
 private:
@@ -46,7 +47,6 @@ public:
 
 private:
     bool mServerRunning;
-    uint16_t mServerPort;
 
     std::thread mIoContextThread;
 

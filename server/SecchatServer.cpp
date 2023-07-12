@@ -24,6 +24,10 @@ int main(int argc, char **argv)
     uint8_t buf[1024];
     uint32_t recvSize = 0;
 
+    uint8_t prompt[] = {'-', '-', '>', ' '};
+
+    tr.sendBlocking(prompt, sizeof(prompt));
+
     bool shouldReceive = true;
     while (shouldReceive)
     {
@@ -36,6 +40,8 @@ int main(int argc, char **argv)
                 printf("%c ", buf[i]);
             }
             printf("\n");
+
+            tr.sendBlocking(prompt, sizeof(prompt));
         }
     }
 
