@@ -16,8 +16,8 @@ int main(int argc, char **argv)
 
     printf("Hello world from server...\n");
 
-    DataTransport tr{12345};
-    tr.serve();
+    DataTransport tr;
+    tr.serve(12345);
 
     printf("Serve returned...");
 

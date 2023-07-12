@@ -34,10 +34,12 @@ private:
 class DataTransport
 {
 public:
-    DataTransport(const uint16_t port);
+    DataTransport();
     ~DataTransport();
 
-    void serve();
+    void serve(const uint16_t port);
+
+    void connect();
 
     bool sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen);
     bool receiveBlocking(uint8_t *const buffer, const uint32_t bufferSizeMax, uint32_t *const bufferReceivedLen);
@@ -49,7 +51,7 @@ private:
     std::thread mIoContextThread;
 
     asio::io_context mIoContext;
-    asio::ip::tcp::acceptor mAcceptor;
+    std::shared_ptr<asio::ip::tcp::acceptor> mAcceptor;
 
     std::vector<asio::ip::tcp::socket> mSockets;
 

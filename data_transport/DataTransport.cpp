@@ -6,11 +6,10 @@
 #include <thread>
 #include <utility>
 
-DataTransport::DataTransport(const uint16_t port)
+DataTransport::DataTransport()
     : mServerRunning(true)
-    , mServerPort{port}
     , mIoContext{}
-    , mAcceptor{mIoContext, asio::ip::tcp::endpoint{asio::ip::tcp::v4(), port}}
+    , mAcceptor{}
     , mSessionsMutex{}
     , mSessions{}
 {
@@ -23,13 +22,23 @@ DataTransport::~DataTransport()
     mIoContextThread.join();
 }
 
-void DataTransport::serve()
+void DataTransport::serve(const uint16_t port)
 {
-    printf("Serving on port: %d\n", mServerPort);
+    printf("Serving on port: %d\n", port);
+
+    mAcceptor = std::make_shared<asio::ip::tcp::acceptor>( //
+        mIoContext,
+        asio::ip::tcp::endpoint{asio::ip::tcp::v4(), port});
 
     acceptHandler();
 
     mIoContextThread = std::thread{[this] { mIoContext.run(); }};
+}
+
+bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen)
+{
+    // TODO: send to all sockets?
+    return true;
 }
 
 bool DataTransport::receiveBlocking(uint8_t *const buffer,
@@ -55,7 +64,7 @@ bool DataTransport::receiveBlocking(uint8_t *const buffer,
 
 void DataTransport::acceptHandler()
 {
-    mAcceptor.async_accept([this](std::error_code ec, asio::ip::tcp::socket socket) {
+    mAcceptor->async_accept([this](std::error_code ec, asio::ip::tcp::socket socket) {
         if (!ec)
         {
             auto remoteEp = socket.remote_endpoint();
