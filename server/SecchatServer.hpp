@@ -22,4 +22,3 @@ private:
 
     void handlePacket(const uint8_t *const data, const uint32_t dataLen);
 };
-

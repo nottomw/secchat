@@ -7,6 +7,7 @@ add_executable(SecchatClient
 
 target_link_libraries(SecchatClient
     PRIVATE
+        secchat::utils
         secchat::crypto
         secchat::data_transport
         secchat::proto

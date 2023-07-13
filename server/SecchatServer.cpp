@@ -1,5 +1,8 @@
 #include "SecchatServer.hpp"
 
+#include "Proto.hpp"
+#include "Utils.hpp"
+
 SecchatServer::SecchatServer()
     : mReaderShouldRun{true}
     , mClientsCount{0U}
@@ -14,10 +17,13 @@ void SecchatServer::start(const uint16_t serverPort)
 {
     mTransport.serve(serverPort);
 
+    // TODO: maybe on server connect should provide a way to talk only
+    // to the new client (socket? overloaded sendBlocking()?)
     mTransport.onServerConnect( //
         [&] {
             mClientsCount += 1U;
             printf("[server] new connection, clients: %d...\n", mClientsCount);
+
             fflush(stdout);
         });
 
@@ -54,10 +60,49 @@ void SecchatServer::stop()
 
 void SecchatServer::handlePacket(const uint8_t *const data, const uint32_t dataLen)
 {
-    // echo to all for now
-    mTransport.sendBlocking(data, dataLen);
+    Proto::Frame frame;
+    frame.header = new Proto::Header;
+    frame.header->source = new char[128]; // TODO: hack
+    frame.header->destination = new char[128];
 
-    // handle sym key exchange -> forward room owner public keys to all users
+    Proto::Payload *p = new Proto::Payload;
+    p->payload = new uint8_t[1024]; // TODO: hack
+
+    const bool deserOk = Proto::deserialize(data, frame);
+    assert(deserOk);
+
+    //    printf("[server] Got message from ");
+    //    utils::printCharacters((uint8_t *)frame.header->source, frame.header->sourceSize);
+    //    fflush(stdout);
+
+    for (const auto &payloadIt : frame.payloads)
+    {
+        switch (payloadIt->type)
+        {
+            case Proto::PayloadType::kNewUser:
+                printf("[server] new user created: ");
+                utils::printCharacters(payloadIt->payload, payloadIt->payloadSize);
+                fflush(stdout);
+                // TODO: handle properly
+                break;
+
+            case Proto::PayloadType::kJoinChatRoom:
+                printf("[server] chatroom join requested created ");
+                utils::printCharacters(payloadIt->payload, payloadIt->payloadSize);
+                fflush(stdout);
+                // TODO: handle properly
+                break;
+
+            default:
+                // echo all others to all users
+                mTransport.sendBlocking(data, dataLen);
+                break;
+        }
+    }
+
+    fflush(stdout);
+
+    // handle sym key exchange -> forward user pub key to all users
     // handle asym key exchange -> forward to all users
     // handle messages -> forward
 }

@@ -3,14 +3,16 @@
 #include "Crypto.hpp"
 #include "DataTransport.hpp"
 
-class SecchatClient{
+class SecchatClient
+{
 public:
     SecchatClient();
 
     void connectToServer(const std::string &ipAddr, const uint16_t port);
     void disconnectFromServer();
 
-    void startChat();
+    void startChat(const std::string &userName);
+    void joinRoom(const std::string &roomName);
 
 private:
     Crypto mCrypto;
@@ -18,4 +20,16 @@ private:
 
     bool mReaderShouldRun;
     std::thread mChatReader;
+
+    using UserPubKey = uint64_t;
+    using UserPrivKey = uint64_t;
+
+    UserPrivKey mMyPrivateKey;
+    UserPubKey mMyPublicKey;
+
+    std::string mMyUserName;
+    std::vector<std::string> mJoinedRooms;
+
+    void serverNewUserAnnounce();
+    void serverJoinRoom(const std::string &roomName);
 };
