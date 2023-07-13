@@ -36,7 +36,7 @@ int main(int argc, char **argv)
                 {
                     printf("%c", rawBuf[i]);
                 }
-                printf(" ");
+                printf("\n");
                 fflush(stdout);
             }
         }
@@ -44,10 +44,11 @@ int main(int argc, char **argv)
 
     while (true)
     {
+        printf("[client] > ");
+        fflush(stdout);
+
         std::string dataToSend;
         std::getline(std::cin, dataToSend);
-
-        printf("[client] echo: %s\n", dataToSend.c_str());
 
         tr.sendBlocking((uint8_t *)dataToSend.c_str(), dataToSend.size());
     }

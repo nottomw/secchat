@@ -2,6 +2,7 @@
 
 SecchatServer::SecchatServer()
     : mReaderShouldRun{true}
+    , mClientsCount{0U}
 {
     if (!mCrypto.init())
     {
@@ -13,10 +14,12 @@ void SecchatServer::start(const uint16_t serverPort)
 {
     mTransport.serve(serverPort);
 
-    uint8_t prompt[] = {'-', '-', '>', ' '};
-
     mTransport.onServerConnect( //
-        [&] { mTransport.sendBlocking(prompt, sizeof(prompt)); });
+        [&] {
+            mClientsCount += 1U;
+            printf("[server] new connection, clients: %d...\n", mClientsCount);
+            fflush(stdout);
+        });
 
     mChatReader = std::thread{[&]() {
         while (mReaderShouldRun)
@@ -26,15 +29,18 @@ void SecchatServer::start(const uint16_t serverPort)
             const bool dataOk = mTransport.receiveBlocking(rawBuf, 1024, &recvdLen);
             if (dataOk)
             {
-                printf("[server] received packet: ");
-                for (size_t i = 0; i < recvdLen; ++i)
                 {
-                    printf("%c", rawBuf[i]);
+                    // DBG
+                    printf("[server] RX: ");
+                    for (size_t i = 0; i < recvdLen; ++i)
+                    {
+                        printf("%c", rawBuf[i]);
+                    }
+                    printf("\n");
+                    fflush(stdout);
                 }
-                printf("\n");
-                fflush(stdout);
 
-                mTransport.sendBlocking(prompt, sizeof(prompt));
+                handlePacket(rawBuf, recvdLen);
             }
         }
     }};
@@ -44,4 +50,10 @@ void SecchatServer::stop()
 {
     mReaderShouldRun = false;
     mChatReader.join();
+}
+
+void SecchatServer::handlePacket(const uint8_t *const data, const uint32_t dataLen)
+{
+    // echo to all for now
+    mTransport.sendBlocking(data, dataLen);
 }
