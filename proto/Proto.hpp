@@ -24,6 +24,10 @@ public:
 
         char *destination;
         uint32_t destinationSize;
+
+        char *payload;
+        uint32_t payloadSize;
+
         // checksum?
     };
 
