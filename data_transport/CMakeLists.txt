@@ -2,6 +2,7 @@
 
 add_library(data_transport
     DataTransport.cpp
+    Session.cpp
 )
 
 target_include_directories(data_transport
