@@ -94,44 +94,43 @@ void SecchatClient::joinRoom(const std::string &roomName)
 
 void SecchatClient::serverNewUserAnnounce()
 {
-    // TODO: mem access error
-    // Proto::Header header = Proto::createHeader(mMyUserName, "testdestserver");
-    std::string dest{"testdestserver"};
-    Proto::Header header = Proto::createHeader(mMyUserName, dest);
+    const std::string dest{"testdestserver"};
+
+    Proto::Frame frame{// ugly casts...
+                       (uint32_t)mMyUserName.size(),
+                       (uint32_t)dest.size(),
+                       (uint32_t)mMyUserName.size()};
+
+    Proto::populateHeader(frame, mMyUserName, dest);
 
     // TODO: this payload should contain user name & public key
-    Proto::Payload payload = Proto::createPayload( //
-        Proto::PayloadType::kNewUser,
-        (uint8_t *)mMyUserName.c_str(), // ugly cast
-        mMyUserName.size());
+    Proto::populatePayload(frame,
+                           Proto::PayloadType::kNewUser,
+                           (uint8_t *)mMyUserName.c_str(), // ugly cast
+                           mMyUserName.size());
 
-    Proto::Frame frame = Proto::createFrame(header, payload);
-
-    std::shared_ptr<uint8_t[]> buffer = //
-        std::shared_ptr<uint8_t[]>(new uint8_t[frame.getSize()]);
-
-    const bool serOk = Proto::serialize(frame, buffer);
-    assert(serOk);
+    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
+    assert(buffer);
 
     mTransport.sendBlocking(buffer.get(), frame.getSize());
 }
 
 void SecchatClient::serverJoinRoom(const std::string &roomName)
 {
-    Proto::Header header = Proto::createHeader(mMyUserName, roomName);
+    Proto::Frame frame{// ugly casts...
+                       (uint32_t)mMyUserName.size(),
+                       (uint32_t)roomName.size(),
+                       (uint32_t)mMyUserName.size()};
 
-    Proto::Payload payload = Proto::createPayload( //
-        Proto::PayloadType::kJoinChatRoom,
-        (uint8_t *)roomName.c_str(), // ugly cast
-        roomName.size());
+    Proto::populateHeader(frame, mMyUserName, roomName);
 
-    Proto::Frame frame = Proto::createFrame(header, payload);
+    Proto::populatePayload(frame,
+                           Proto::PayloadType::kJoinChatRoom,
+                           (uint8_t *)roomName.c_str(), // ugly cast
+                           roomName.size());
 
-    std::shared_ptr<uint8_t[]> buffer = //
-        std::shared_ptr<uint8_t[]>(new uint8_t[frame.getSize()]);
-
-    const bool serOk = Proto::serialize(frame, buffer);
-    assert(serOk);
+    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
+    assert(buffer);
 
     printf("Sending room join request\n");
     utils::printCharacters(buffer.get(), frame.getSize());

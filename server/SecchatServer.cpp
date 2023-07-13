@@ -60,47 +60,33 @@ void SecchatServer::stop()
 
 void SecchatServer::handlePacket(const uint8_t *const data, const uint32_t dataLen)
 {
-    Proto::Frame frame;
-    frame.header = new Proto::Header;
-    frame.header->source = new char[128]; // TODO: hack
-    frame.header->destination = new char[128];
+    // TODO: data can contain more than one frame...
 
-    Proto::Payload *p = new Proto::Payload;
-    p->payload = new uint8_t[1024]; // TODO: hack
+    const Proto::Frame frame = Proto::deserialize(data);
 
-    const bool deserOk = Proto::deserialize(data, frame);
-    assert(deserOk);
-
-    //    printf("[server] Got message from ");
-    //    utils::printCharacters((uint8_t *)frame.header->source, frame.header->sourceSize);
-    //    fflush(stdout);
-
-    for (const auto &payloadIt : frame.payloads)
+    switch (frame.payload.type)
     {
-        switch (payloadIt->type)
-        {
-            case Proto::PayloadType::kNewUser:
-                printf("[server] new user created: ");
-                utils::printCharacters(payloadIt->payload, payloadIt->payloadSize);
-                fflush(stdout);
-                // TODO: handle properly
-                break;
+        case Proto::PayloadType::kNewUser:
+            printf("[server] new user created: ");
+            utils::printCharacters(frame.payload.payload.get(), frame.payload.payloadSize);
+            fflush(stdout);
+            // TODO: handle properly
+            break;
 
-            case Proto::PayloadType::kJoinChatRoom:
-                printf("[server] chatroom join requested created ");
-                utils::printCharacters(payloadIt->payload, payloadIt->payloadSize);
-                fflush(stdout);
-                // TODO: handle properly
-                break;
+        case Proto::PayloadType::kJoinChatRoom:
+            printf("[server] chatroom join requested created ");
+            utils::printCharacters(frame.payload.payload.get(), frame.payload.payloadSize);
+            fflush(stdout);
+            // TODO: handle properly
+            break;
 
-            default:
-                // echo all others to all users
-                printf("NOT FORWARDING: ");
-                utils::printCharacters(data, dataLen);
-                fflush(stdout);
-                //                mTransport.sendBlocking(data, dataLen);
-                break;
-        }
+        default:
+            // echo all others to all users
+            printf("NOT FORWARDING: ");
+            utils::printCharacters(data, dataLen);
+            fflush(stdout);
+            //                mTransport.sendBlocking(data, dataLen);
+            break;
     }
 
     fflush(stdout);

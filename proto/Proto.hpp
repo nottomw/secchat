@@ -10,13 +10,6 @@ class Proto
 public:
     // TODO: how to ensure the user/owner is who he claims to be
 
-    // Frame {
-    //      { header - contains payload count },
-    //      { payloadType } { payloadSize } { payload }
-    //      { payloadType } { payloadSize } { payload }
-    //      ...
-    // }
-
     enum class PayloadType
     {
         kMessageToServer,
@@ -39,27 +32,26 @@ public:
 
     struct Header
     {
-        //    private: // TODO: fixme
+        // private:
         uint64_t protoVersion;
         uint64_t timestampSend; // timestamped when sending
 
         uint32_t sourceSize;
-        char *source;
+        std::unique_ptr<char[]> source;
 
         uint32_t destinationSize;
-        char *destination;
-
-        uint32_t payloadCount;
+        std::unique_ptr<char[]> destination;
 
         friend class Proto;
     };
 
     struct Payload
     {
-        //    private: // TODO: fixme
+        // private:
         PayloadType type;
+
         uint32_t payloadSize;
-        uint8_t *payload;
+        std::unique_ptr<uint8_t[]> payload;
 
         friend class Proto;
     };
@@ -67,37 +59,44 @@ public:
     struct Frame
     {
     public:
+        Frame(const uint32_t sourceSize,
+              const uint32_t destinationSize,
+              const uint32_t payloadSize); // create frame for serialize
+        ~Frame();
+
+        Frame(const Frame &) = default;
+        Frame(Frame &&) = default;
+        // TODO: assignment operators
+
         uint32_t getSize() const;
 
-        //    private: // TODO: fixme
-        Header *header; // TODO: reference?
-        std::vector<Payload *> payloads;
+        // private:
+        Frame(); // create frame for deserialize
+
+        Header header;
+        Payload payload;
 
         friend class Proto;
     };
 
     // source & dest pointers must be valid up until
     // serialization - data not copied
-    static Header createHeader( //
+    static void populateHeader( //
+        Frame &frame,
         const std::string &source,
         const std::string &destination);
 
     // payload pointer must be valid up until
     // serialization - data not copied
-    static Payload createPayload( //
+    static void populatePayload( //
+        Frame &frame,
         PayloadType type,
         uint8_t *const payload,
         const uint32_t payloadSize);
 
-    // TODO: support multiple payloads...
-    // header and payload must be valud up until
-    // serialization - data not copied
-    static Frame createFrame( //
-        Header &header,
-        Payload &payload);
+    static std::unique_ptr<uint8_t[]> serialize(const Frame &frame);
 
-    static bool serialize(const Frame &frame, std::shared_ptr<uint8_t[]> buffer);
-    static bool deserialize(const uint8_t *const buffer, Frame &frame);
+    static Frame deserialize(const uint8_t *const buffer);
 
     // serialize() - streams?
     // deserialize() - streams?
