@@ -1,6 +1,7 @@
 # SecchatServer.
 
 add_executable(SecchatServer
+    ServerMain.cpp
     SecchatServer.cpp
 )
 

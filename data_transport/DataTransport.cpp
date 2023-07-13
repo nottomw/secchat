@@ -6,6 +6,8 @@
 #include <thread>
 #include <utility>
 
+// TODO: graceful connection drop
+
 DataTransport::DataTransport()
     : mCurrentMode{Mode::kNone}
     , mServerRunning{true}
@@ -90,7 +92,7 @@ bool DataTransport::receiveBlocking(uint8_t *const buffer,
 {
     *bufferReceivedLen = 0U;
 
-    constexpr uint64_t kLoopWaitTimeMs = 300U;
+    constexpr uint64_t kLoopWaitTimeMs = 100U;
     uint64_t totalWaitTime = 0U;
 
     while (true)
