@@ -121,7 +121,6 @@ std::vector<Proto::Frame> Proto::deserialize( //
         memcpy(&frame.payload.payloadSize, buf, sizeof(Payload::payloadSize));
         buf += sizeof(Payload::payloadSize);
 
-        // TODO: memleak
         frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[frame.payload.payloadSize]);
         memcpy(frame.payload.payload.get(), buf, frame.payload.payloadSize);
         buf += frame.payload.payloadSize;
