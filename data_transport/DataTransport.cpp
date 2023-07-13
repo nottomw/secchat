@@ -31,8 +31,6 @@ void DataTransport::serve(const uint16_t port)
 {
     setTransportMode(Mode::kServer);
 
-    printf("Serving on port: %d\n", port);
-
     mAcceptor = std::make_shared<asio::ip::tcp::acceptor>( //
         mIoContext,
         asio::ip::tcp::endpoint{asio::ip::tcp::v4(), port});
@@ -54,11 +52,6 @@ void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
     mResolver = std::make_shared<asio::ip::tcp::resolver>(mIoContext);
 
     auto endpoints = mResolver->resolve(ipAddr, std::to_string(port));
-
-    for (const auto &ep : endpoints)
-    {
-        printf("Connecting to endpoint: %s\n", ep.host_name().c_str());
-    }
 
     asio::ip::tcp::socket sock(mIoContext);
     asio::connect(sock, endpoints);
@@ -139,7 +132,7 @@ void DataTransport::acceptHandler()
         if (!ec)
         {
             auto remoteEp = socket.remote_endpoint();
-            printf("Socket accepted from: %s\n", remoteEp.address().to_string().c_str());
+            printf("Accepted connection from: %s\n", remoteEp.address().to_string().c_str());
 
             {
                 auto session = std::make_shared<Session>(std::move(socket));
