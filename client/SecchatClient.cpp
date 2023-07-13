@@ -87,7 +87,8 @@ void SecchatClient::joinRoom(const std::string &roomName)
         std::string dataToSend;
         std::getline(std::cin, dataToSend);
 
-        mTransport.sendBlocking((uint8_t *)dataToSend.c_str(), dataToSend.size());
+        printf("NOT SENDING: %s\n", dataToSend.c_str());
+        //        mTransport.sendBlocking((uint8_t *)dataToSend.c_str(), dataToSend.size());
     }
 }
 

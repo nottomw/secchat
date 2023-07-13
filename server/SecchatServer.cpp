@@ -95,7 +95,10 @@ void SecchatServer::handlePacket(const uint8_t *const data, const uint32_t dataL
 
             default:
                 // echo all others to all users
-                mTransport.sendBlocking(data, dataLen);
+                printf("NOT FORWARDING: ");
+                utils::printCharacters(data, dataLen);
+                fflush(stdout);
+                //                mTransport.sendBlocking(data, dataLen);
                 break;
         }
     }
