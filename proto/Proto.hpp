@@ -12,6 +12,8 @@ public:
 
     enum class PayloadType
     {
+        kNone,
+
         kMessageToServer,
         kMessageFromServer,
 
@@ -32,7 +34,7 @@ public:
 
     struct Header
     {
-        // private:
+    public:
         uint64_t protoVersion;
         uint64_t timestampSend; // timestamped when sending
 
@@ -42,16 +44,21 @@ public:
         uint32_t destinationSize;
         std::unique_ptr<char[]> destination;
 
+    private:
+        Header();
+
         friend class Proto;
     };
 
     struct Payload
     {
-        // private:
+    public:
         PayloadType type;
-
         uint32_t payloadSize;
         std::unique_ptr<uint8_t[]> payload;
+
+    private:
+        Payload();
 
         friend class Proto;
     };
@@ -62,15 +69,19 @@ public:
         Frame(const uint32_t sourceSize,
               const uint32_t destinationSize,
               const uint32_t payloadSize); // create frame for serialize
-        ~Frame();
 
         Frame(const Frame &) = default;
         Frame(Frame &&) = default;
-        // TODO: assignment operators
+        Frame &operator=(const Frame &) = default;
+        Frame &operator=(Frame &&) = default;
+
+        ~Frame();
 
         uint32_t getSize() const;
+        Header &getHeader();
+        Payload &getPayload();
 
-        // private:
+    private:
         Frame(); // create frame for deserialize
 
         Header header;

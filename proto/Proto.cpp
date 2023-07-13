@@ -172,7 +172,31 @@ uint32_t Proto::Frame::getSize() const
     return frameSize;
 }
 
+Proto::Header &Proto::Frame::getHeader()
+{
+    return header;
+}
+
+Proto::Payload &Proto::Frame::getPayload()
+{
+    return payload;
+}
+
 Proto::Frame::Frame()
 {
     // That's an empty frame - memory allocated during deserialize
+}
+
+Proto::Payload::Payload()
+    : type{PayloadType::kNone}
+    , payloadSize{0U}
+{
+}
+
+Proto::Header::Header()
+    : protoVersion{kProtoVersionCurrent}
+    , timestampSend{0U}
+    , sourceSize{0U}
+    , destinationSize{0U}
+{
 }

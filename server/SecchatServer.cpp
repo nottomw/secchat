@@ -35,17 +35,6 @@ void SecchatServer::start(const uint16_t serverPort)
             const bool dataOk = mTransport.receiveBlocking(rawBuf, 1024, &recvdLen);
             if (dataOk)
             {
-                {
-                    // DBG
-                    printf("[server] RX: ");
-                    for (size_t i = 0; i < recvdLen; ++i)
-                    {
-                        printf("%c", rawBuf[i]);
-                    }
-                    printf("\n");
-                    fflush(stdout);
-                }
-
                 handlePacket(rawBuf, recvdLen);
             }
         }
@@ -62,22 +51,21 @@ void SecchatServer::handlePacket(const uint8_t *const data, const uint32_t dataL
 {
     auto receivedFrames = Proto::deserialize(data, dataLen);
 
-    printf("[server] received %ld frames\n", receivedFrames.size());
-
     for (auto &framesIt : receivedFrames)
     {
-        switch (framesIt.payload.type)
+        Proto::Payload &payload = framesIt.getPayload();
+        switch (payload.type)
         {
             case Proto::PayloadType::kNewUser:
                 printf("[server] new user created: ");
-                utils::printCharacters(framesIt.payload.payload.get(), framesIt.payload.payloadSize);
+                utils::printCharacters(payload.payload.get(), payload.payloadSize);
                 fflush(stdout);
                 // TODO: handle properly
                 break;
 
             case Proto::PayloadType::kJoinChatRoom:
                 printf("[server] chatroom join requested created ");
-                utils::printCharacters(framesIt.payload.payload.get(), framesIt.payload.payloadSize);
+                utils::printCharacters(payload.payload.get(), payload.payloadSize);
                 fflush(stdout);
                 // TODO: handle properly
                 break;

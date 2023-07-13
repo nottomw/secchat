@@ -155,7 +155,7 @@ void DataTransport::acceptHandler()
         if (!ec)
         {
             auto remoteEp = socket.remote_endpoint();
-            printf("Accepted connection from: %s\n", remoteEp.address().to_string().c_str());
+            printf("[server] accepted connection from: %s\n", remoteEp.address().to_string().c_str());
 
             {
                 auto session = std::make_shared<Session>(std::move(socket));
