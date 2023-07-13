@@ -7,7 +7,8 @@
 #include <utility>
 
 DataTransport::DataTransport()
-    : mServerRunning(true)
+    : mCurrentMode{Mode::kNone}
+    , mServerRunning{true}
     , mIoContext{}
     , mAcceptor{}
     , mResolver{}
@@ -28,6 +29,8 @@ DataTransport::~DataTransport()
 
 void DataTransport::serve(const uint16_t port)
 {
+    setTransportMode(Mode::kServer);
+
     printf("Serving on port: %d\n", port);
 
     mAcceptor = std::make_shared<asio::ip::tcp::acceptor>( //
@@ -46,6 +49,8 @@ void DataTransport::onServerConnect(const DataTransport::FnOnConnectHandler hand
 
 void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
 {
+    setTransportMode(Mode::kClient);
+
     mResolver = std::make_shared<asio::ip::tcp::resolver>(mIoContext);
 
     auto endpoints = mResolver->resolve(ipAddr, std::to_string(port));
@@ -104,6 +109,28 @@ bool DataTransport::receiveBlocking(uint8_t *const buffer,
     }
 
     return false;
+}
+
+void DataTransport::setTransportMode(const DataTransport::Mode newMode)
+{
+    switch (mCurrentMode)
+    {
+        case Mode::kNone:
+            mCurrentMode = newMode;
+            break;
+
+        case Mode::kClient:
+            assert(newMode == Mode::kClient);
+            break;
+
+        case Mode::kServer:
+            assert(newMode == Mode::kServer);
+            break;
+
+        default:
+            assert(NULL != "incorrect DataTransport mode set");
+            break;
+    }
 }
 
 void DataTransport::acceptHandler()
@@ -176,7 +203,6 @@ bool Session::getData(uint8_t *const buffer, const uint32_t bufferSizeMax, uint3
         {
             ReceivedData &dat = mReceivedDataQueue.front();
 
-            // TODO: read all available data up to max size of buffer...
             assert(dat.mBufferLen < bufferSizeMax);
 
             memcpy(buffer, dat.mBuffer.get(), dat.mBufferLen);

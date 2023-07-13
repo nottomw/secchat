@@ -50,6 +50,14 @@ public:
     bool receiveBlocking(uint8_t *const buffer, const uint32_t bufferSizeMax, uint32_t *const bufferReceivedLen);
 
 private:
+    enum class Mode
+    {
+        kNone,
+        kServer,
+        kClient,
+    };
+
+    Mode mCurrentMode;
     bool mServerRunning;
 
     std::thread mIoContextThread;
@@ -66,5 +74,6 @@ private:
 
     FnOnConnectHandler mOnConnectHandler;
 
+    void setTransportMode(const Mode newMode);
     void acceptHandler();
 };
