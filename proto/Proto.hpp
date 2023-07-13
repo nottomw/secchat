@@ -96,7 +96,9 @@ public:
 
     static std::unique_ptr<uint8_t[]> serialize(const Frame &frame);
 
-    static Frame deserialize(const uint8_t *const buffer);
+    static std::vector<Frame> deserialize( //
+        const uint8_t *const buffer,
+        const uint32_t bufferSize);
 
     // serialize() - streams?
     // deserialize() - streams?

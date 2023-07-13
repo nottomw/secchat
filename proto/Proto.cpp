@@ -77,48 +77,60 @@ std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
     return retBuf;
 }
 
-Proto::Frame Proto::deserialize(const uint8_t *const buffer)
+std::vector<Proto::Frame> Proto::deserialize( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize)
 {
     assert(buffer != nullptr);
 
-    Proto::Frame frame;
+    std::vector<Proto::Frame> allFrames;
 
     const uint8_t *buf = buffer; // copy the pointer so it can be moved
+    uint32_t bytesLeftToParse = bufferSize;
 
-    // Deserialize the header...
-    memcpy(&frame.header.protoVersion, buf, sizeof(Header::protoVersion));
-    buf += sizeof(Header::protoVersion);
+    while (bytesLeftToParse > 0)
+    {
+        Proto::Frame frame;
 
-    memcpy(&frame.header.timestampSend, buf, sizeof(Header::timestampSend));
-    buf += sizeof(Header::timestampSend);
+        // Deserialize the header...
+        memcpy(&frame.header.protoVersion, buf, sizeof(Header::protoVersion));
+        buf += sizeof(Header::protoVersion);
 
-    memcpy(&frame.header.sourceSize, buf, sizeof(Header::sourceSize));
-    buf += sizeof(Header::sourceSize);
+        memcpy(&frame.header.timestampSend, buf, sizeof(Header::timestampSend));
+        buf += sizeof(Header::timestampSend);
 
-    frame.header.source = std::unique_ptr<char[]>(new char[frame.header.sourceSize]);
-    memcpy(frame.header.source.get(), buf, frame.header.sourceSize);
-    buf += frame.header.sourceSize;
+        memcpy(&frame.header.sourceSize, buf, sizeof(Header::sourceSize));
+        buf += sizeof(Header::sourceSize);
 
-    memcpy(&frame.header.destinationSize, buf, sizeof(Header::destinationSize));
-    buf += sizeof(Header::destinationSize);
+        frame.header.source = std::unique_ptr<char[]>(new char[frame.header.sourceSize]);
+        memcpy(frame.header.source.get(), buf, frame.header.sourceSize);
+        buf += frame.header.sourceSize;
 
-    frame.header.destination = std::unique_ptr<char[]>(new char[frame.header.destinationSize]);
-    memcpy(frame.header.destination.get(), buf, frame.header.destinationSize);
-    buf += frame.header.destinationSize;
+        memcpy(&frame.header.destinationSize, buf, sizeof(Header::destinationSize));
+        buf += sizeof(Header::destinationSize);
 
-    // Deserialize the payload...
+        frame.header.destination = std::unique_ptr<char[]>(new char[frame.header.destinationSize]);
+        memcpy(frame.header.destination.get(), buf, frame.header.destinationSize);
+        buf += frame.header.destinationSize;
 
-    memcpy(&frame.payload.type, buf, sizeof(Payload::type));
-    buf += sizeof(Payload::type);
+        // Deserialize the payload...
 
-    memcpy(&frame.payload.payloadSize, buf, sizeof(Payload::payloadSize));
-    buf += sizeof(Payload::payloadSize);
+        memcpy(&frame.payload.type, buf, sizeof(Payload::type));
+        buf += sizeof(Payload::type);
 
-    // TODO: memleak
-    frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[frame.payload.payloadSize]);
-    memcpy(frame.payload.payload.get(), buf, frame.payload.payloadSize);
+        memcpy(&frame.payload.payloadSize, buf, sizeof(Payload::payloadSize));
+        buf += sizeof(Payload::payloadSize);
 
-    return frame;
+        // TODO: memleak
+        frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[frame.payload.payloadSize]);
+        memcpy(frame.payload.payload.get(), buf, frame.payload.payloadSize);
+        buf += frame.payload.payloadSize;
+
+        bytesLeftToParse -= frame.getSize();
+        allFrames.push_back(std::move(frame));
+    }
+
+    return allFrames;
 }
 
 Proto::Frame::Frame(const uint32_t sourceSize, const uint32_t destinationSize, const uint32_t payloadSize)
