@@ -56,4 +56,8 @@ void SecchatServer::handlePacket(const uint8_t *const data, const uint32_t dataL
 {
     // echo to all for now
     mTransport.sendBlocking(data, dataLen);
+
+    // handle sym key exchange -> forward room owner public keys to all users
+    // handle asym key exchange -> forward to all users
+    // handle messages -> forward
 }
