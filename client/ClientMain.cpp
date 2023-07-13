@@ -4,7 +4,6 @@
 
 int main()
 {
-
     printf("Hello world from client...\n");
 
     SecchatClient client;
