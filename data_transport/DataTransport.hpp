@@ -17,19 +17,20 @@ public:
     bool getData(uint8_t *const buffer, const uint32_t bufferSizeMAx, uint32_t *const bufferReceivedLen);
 
 private:
-    static constexpr uint32_t maxBufSize = 1024;
-    uint8_t mRawBuffer[1024];
+    static constexpr uint32_t kMaxBufSize = 1024;
+    uint8_t mRawBuffer[kMaxBufSize];
 
     asio::ip::tcp::socket mSocket;
 
     struct ReceivedData
     {
-        uint8_t buffer[maxBufSize];
-        uint32_t bufferLen;
+        ReceivedData(const size_t bufferLen);
+        std::shared_ptr<uint8_t[]> mBuffer;
+        size_t mBufferLen;
     };
 
-    std::mutex mReceivedDataMutex;
-    std::deque<ReceivedData> mReceivedData;
+    std::mutex mReceivedDataQueueMutex;
+    std::deque<ReceivedData> mReceivedDataQueue;
 };
 
 class DataTransport

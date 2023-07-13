@@ -127,7 +127,7 @@ void DataTransport::acceptHandler()
             }
         }
 
-        acceptHandler();
+        acceptHandler(); // continue accepting
     });
 }
 
@@ -139,7 +139,7 @@ Session::Session(asio::ip::tcp::socket &&s)
 
 Session::Session(Session &&s)
     : mSocket{std::move(s.mSocket)}
-    , mReceivedData{std::move(s.mReceivedData)}
+    , mReceivedDataQueue{std::move(s.mReceivedDataQueue)}
 {
 }
 
@@ -149,19 +149,15 @@ void Session::start()
                             [this](std::error_code ec, std::size_t length) {
                                 if (!ec)
                                 {
-                                    ReceivedData data;
-
-                                    assert(length < 1024);
-
-                                    memcpy(data.buffer, mRawBuffer, length);
-                                    data.bufferLen = length;
+                                    ReceivedData data{length};
+                                    memcpy(data.mBuffer.get(), mRawBuffer, length);
 
                                     {
-                                        std::lock_guard<std::mutex> l{mReceivedDataMutex};
-                                        mReceivedData.push_back(std::move(data));
+                                        std::lock_guard<std::mutex> l{mReceivedDataQueueMutex};
+                                        mReceivedDataQueue.push_back(std::move(data));
                                     }
 
-                                    start();
+                                    start(); // continue receiving
                                 }
                             } //
     );
@@ -175,22 +171,28 @@ asio::ip::tcp::socket &Session::getSocket()
 bool Session::getData(uint8_t *const buffer, const uint32_t bufferSizeMax, uint32_t *const bufferReceivedLen)
 {
     {
-        std::lock_guard<std::mutex> l{mReceivedDataMutex};
-        if (mReceivedData.size() > 0)
+        std::lock_guard<std::mutex> l{mReceivedDataQueueMutex};
+        if (mReceivedDataQueue.size() > 0)
         {
-            ReceivedData &dat = mReceivedData.front();
+            ReceivedData &dat = mReceivedDataQueue.front();
 
             // TODO: read all available data up to max size of buffer...
-            assert(dat.bufferLen < bufferSizeMax);
+            assert(dat.mBufferLen < bufferSizeMax);
 
-            memcpy(buffer, dat.buffer, dat.bufferLen);
-            *bufferReceivedLen = dat.bufferLen;
+            memcpy(buffer, dat.mBuffer.get(), dat.mBufferLen);
+            *bufferReceivedLen = dat.mBufferLen;
 
-            mReceivedData.pop_front();
+            mReceivedDataQueue.pop_front();
 
             return true;
         }
     }
 
     return false;
+}
+
+Session::ReceivedData::ReceivedData(const size_t bufferLen)
+    : mBuffer{std::shared_ptr<uint8_t[]>(new uint8_t[bufferLen])}
+    , mBufferLen{bufferLen}
+{
 }
