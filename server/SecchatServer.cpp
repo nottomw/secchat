@@ -30,7 +30,6 @@ int main(int argc, char **argv)
             uint8_t rawBuf[1024];
             uint32_t recvdLen = 0;
             const bool dataOk = tr.receiveBlocking(rawBuf, 1024, &recvdLen);
-
             if (dataOk)
             {
                 printf("[server] received packet: ");

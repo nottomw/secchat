@@ -85,20 +85,37 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
 
 bool DataTransport::receiveBlocking(uint8_t *const buffer,
                                     const uint32_t bufferSizeMax,
-                                    uint32_t *const bufferReceivedLen)
+                                    uint32_t *const bufferReceivedLen,
+                                    const uint64_t timeoutMs)
 {
     *bufferReceivedLen = 0U;
 
+    constexpr uint64_t kLoopWaitTimeMs = 300U;
+    uint64_t totalWaitTime = 0U;
+
+    while (true)
     {
-        std::lock_guard<std::mutex> l{mSessionsMutex};
-        for (auto &it : mSessions)
+        const bool timeoutArmed = (timeoutMs != 0U);
+        const bool timeoutHappened = (totalWaitTime > timeoutMs);
+        if (timeoutArmed && timeoutHappened)
         {
-            const bool recvOk = it->getData(buffer, bufferSizeMax, bufferReceivedLen);
-            if (recvOk)
+            return false;
+        }
+
+        {
+            std::lock_guard<std::mutex> l{mSessionsMutex};
+            for (auto &it : mSessions)
             {
-                return true;
+                const bool recvOk = it->getData(buffer, bufferSizeMax, bufferReceivedLen);
+                if (recvOk)
+                {
+                    return true;
+                }
             }
         }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(kLoopWaitTimeMs));
+        totalWaitTime += kLoopWaitTimeMs;
     }
 
     return false;
