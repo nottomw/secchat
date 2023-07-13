@@ -117,10 +117,12 @@ void SecchatClient::serverNewUserAnnounce()
 
 void SecchatClient::serverJoinRoom(const std::string &roomName)
 {
-    Proto::Frame frame{// ugly casts...
-                       (uint32_t)mMyUserName.size(),
-                       (uint32_t)roomName.size(),
-                       (uint32_t)mMyUserName.size()};
+    Proto::Frame frame{
+        // ugly casts...
+        (uint32_t)mMyUserName.size(), // src
+        (uint32_t)roomName.size(),    // dst
+        (uint32_t)roomName.size()     // payload
+    };
 
     Proto::populateHeader(frame, mMyUserName, roomName);
 

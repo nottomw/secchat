@@ -132,7 +132,10 @@ std::vector<Proto::Frame> Proto::deserialize( //
     return allFrames;
 }
 
-Proto::Frame::Frame(const uint32_t sourceSize, const uint32_t destinationSize, const uint32_t payloadSize)
+Proto::Frame::Frame( //
+    const uint32_t sourceSize,
+    const uint32_t destinationSize,
+    const uint32_t payloadSize)
 {
     header.source = std::unique_ptr<char[]>(new char[sourceSize]);
     header.destination = std::unique_ptr<char[]>(new char[destinationSize]);
