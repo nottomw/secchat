@@ -1,6 +1,7 @@
 # SecchatClient.
 
 add_executable(SecchatClient
+    ClientMain.cpp
     SecchatClient.cpp
 )
 

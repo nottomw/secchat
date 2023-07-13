@@ -1,47 +1,53 @@
-#include "Crypto.hpp"
-#include "DataTransport.hpp"
+#include "SecchatClient.hpp"
 
 #include <chrono>
-#include <cstdio>
 #include <iostream>
 #include <thread>
 
-int main(int argc, char **argv)
+SecchatClient::SecchatClient()
+    : mCrypto{}
+    , mTransport{}
+    , mReaderShouldRun{true}
 {
-    (void)argc;
-    (void)argv;
-
-    Crypto crypto;
-    if (!crypto.init())
+    if (!mCrypto.init())
     {
         printf("Crypto init failed\n");
     }
+}
 
-    printf("Hello world from client...\n");
+void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t port)
+{
+    mTransport.connect(ipAddr, port);
 
-    DataTransport tr;
-    tr.connect("127.0.0.1", 12345);
+    mChatReader = std::thread{//
+                              [&]() {
+                                  while (mReaderShouldRun)
+                                  {
+                                      uint8_t rawBuf[1024];
+                                      uint32_t recvdLen = 0;
+                                      const bool dataOk = mTransport.receiveBlocking(rawBuf, 1024, &recvdLen);
 
-    bool readerShouldRun = true;
-    std::thread chatReader{[&readerShouldRun, &tr]() {
-        while (readerShouldRun)
-        {
-            uint8_t rawBuf[1024];
-            uint32_t recvdLen = 0;
-            const bool dataOk = tr.receiveBlocking(rawBuf, 1024, &recvdLen);
+                                      if (dataOk)
+                                      {
+                                          for (size_t i = 0; i < recvdLen; ++i)
+                                          {
+                                              printf("%c", rawBuf[i]);
+                                          }
+                                          printf("\n");
+                                          fflush(stdout);
+                                      }
+                                  }
+                              }};
+}
 
-            if (dataOk)
-            {
-                for (size_t i = 0; i < recvdLen; ++i)
-                {
-                    printf("%c", rawBuf[i]);
-                }
-                printf("\n");
-                fflush(stdout);
-            }
-        }
-    }};
+void SecchatClient::disconnectFromServer()
+{
+    mReaderShouldRun = false;
+    mChatReader.join();
+}
 
+void SecchatClient::startChat()
+{
     while (true)
     {
         printf("[client] > ");
@@ -50,11 +56,6 @@ int main(int argc, char **argv)
         std::string dataToSend;
         std::getline(std::cin, dataToSend);
 
-        tr.sendBlocking((uint8_t *)dataToSend.c_str(), dataToSend.size());
+        mTransport.sendBlocking((uint8_t *)dataToSend.c_str(), dataToSend.size());
     }
-
-    readerShouldRun = false;
-    chatReader.join();
-
-    return 0;
 }
