@@ -138,6 +138,8 @@ static bool startChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int *chatHeight, i
 
 int main()
 {
+    signal(SIGINT, handleCtrlC);
+
     WINDOW *chatWin = nullptr;
     WINDOW *inputWin = nullptr;
     int chatHeight = 0;
@@ -153,8 +155,6 @@ int main()
     std::string inputText; // Stores the user's input
 
     int cursorPositionX = 1;
-
-    signal(SIGINT, handleCtrlC);
 
     while (true)
     {
