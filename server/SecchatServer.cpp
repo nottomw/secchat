@@ -30,25 +30,26 @@ void SecchatServer::start(const uint16_t serverPort)
             // Remove dropped user from all rooms he joined...
             for (auto &roomIt : mRooms)
             {
-                for (auto userInRoomIt = roomIt.mJoinedUsers.begin(); //
-                     userInRoomIt != roomIt.mJoinedUsers.end();
-                     /* incremented in body */)
-                {
-                    auto userInRoomSession = userInRoomIt->mSession.lock();
-                    assert(userInRoomSession);
+                auto &joinedUsers = roomIt.mJoinedUsers;
 
-                    if (*userInRoomSession == *sessPtr)
-                    {
-                        printf("[server] removing user %s from room %s\n", //
-                               userInRoomIt->mUserName.c_str(),
-                               roomIt.roomName.c_str());
-                        userInRoomIt = roomIt.mJoinedUsers.erase(userInRoomIt);
-                    }
-                    else
-                    {
-                        userInRoomIt++;
-                    }
-                }
+                joinedUsers.erase(  //
+                    std::remove_if( //
+                        joinedUsers.begin(),
+                        joinedUsers.end(),
+                        [&](User &user) { //
+                            auto userSessionPtr = user.mSession.lock();
+                            if (*userSessionPtr == *sessPtr)
+                            {
+                                printf("[server] removing user %s from room %s\n", //
+                                       user.mUserName.c_str(),
+                                       roomIt.roomName.c_str());
+
+                                return true; // remove
+                            }
+
+                            return false; // dont remove
+                        }),
+                    joinedUsers.end());
             }
 
             // Remove user...
@@ -63,7 +64,7 @@ void SecchatServer::start(const uint16_t serverPort)
                                        return true; // remove
                                    }
 
-                                   return false;
+                                   return false; // dont remove
                                }),
                 mUsers.end());
 
