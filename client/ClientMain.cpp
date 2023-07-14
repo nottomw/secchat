@@ -63,31 +63,7 @@
 #include <string>
 #include <vector>
 
-// Structure to represent a chat message
-struct ChatMessage
-{
-    std::string sender;
-    std::string message;
-};
-
-// Function to draw the chat window
-void drawChatWindow(WINDOW *chatWin, const std::vector<ChatMessage> &messages, int chatHeight, int chatWidth)
-{
-    wclear(chatWin);
-    box(chatWin, 0, 0);
-
-    int numMessages = messages.size();
-    int startRow = std::max(0, numMessages - chatHeight + 2);
-
-    int y = 1;
-    for (int i = startRow, row = 0; i < numMessages && row < chatHeight - 2; ++i, ++row)
-    {
-        const auto &msg = messages[i];
-        mvwprintw(chatWin, y + row, 1, "<%s> %s", msg.sender.c_str(), msg.message.c_str());
-    }
-
-    wrefresh(chatWin);
-}
+static bool sIsRunning = true;
 
 void handleCtrlC(int signal)
 {
@@ -95,27 +71,45 @@ void handleCtrlC(int signal)
     exit(0);  // Terminate the program
 }
 
+static void drawChatWindow( //
+    WINDOW *chatWin,
+    const std::vector<std::string> &formattedMessages,
+    int chatHeight,
+    int chatWidth)
+{
+    wclear(chatWin);
+    box(chatWin, 0, 0);
+
+    int numMessages = formattedMessages.size();
+    int startRow = std::max(0, numMessages - chatHeight + 2);
+
+    int y = 1;
+    for (int i = startRow, row = 0; i < numMessages && row < chatHeight - 2; ++i, ++row)
+    {
+        const auto &msg = formattedMessages[i];
+        mvwprintw(chatWin, y + row, 1, "%s", msg.c_str());
+    }
+
+    wrefresh(chatWin);
+}
+
 int main()
 {
-    // Initialize ncurses
     initscr();
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
     curs_set(0);
 
-    // Check if the terminal supports color
     if (!has_colors())
     {
         endwin();
-        std::cerr << "Error: Terminal does not support color." << std::endl;
+        utils::log("Error: Terminal does not support color.\n");
         return 1;
     }
 
-    // Start color mode
     start_color();
 
-    // Define color pairs
     init_pair(1, COLOR_WHITE, COLOR_BLUE); // Pair 1 for blue line
 
     int rows, cols;
@@ -141,44 +135,46 @@ int main()
     mvhline(rows - inputHeight - 1, 0, ACS_HLINE, cols);
     attroff(COLOR_PAIR(1));
 
-    std::vector<ChatMessage> messages;
+    std::vector<std::string> formattedMessages;
     std::string inputText; // Stores the user's input
 
-    int cursorX = 1; // Stores the cursor position within the input window
+    int cursorPositionX = 1;
 
-    bool running = true;
+    // Show the cursor
     curs_set(1);
 
     signal(SIGINT, handleCtrlC);
 
     // Main loop
-    while (running)
+    while (sIsRunning)
     {
-        drawChatWindow(chatWin, messages, chatHeight, chatWidth);
+        drawChatWindow(chatWin, formattedMessages, chatHeight, chatWidth);
 
         // Move the cursor to the input window
-        wmove(inputWin, 1, cursorX);
+        wmove(inputWin, 1, cursorPositionX);
         wrefresh(inputWin);
 
         int ch = getch();
         switch (ch)
         {
-            case 'q':
-                running = false;
-                break;
             case '\n':
                 {
                     // Add the message to the chat
-                    messages.push_back({"User", inputText});
+                    std::string formattedMessage{"<my_user_name> "};
+                    formattedMessage += inputText;
+                    formattedMessages.push_back(formattedMessage);
+
+                    // move cursor back
+                    cursorPositionX = 1;
 
                     // Clear the input window and input text
                     werase(inputWin);
                     box(inputWin, 0, 0);
                     wrefresh(inputWin);
                     inputText.clear();
-
-                    break;
                 }
+                break;
+
             case KEY_BACKSPACE:
             case 127:
                 {
@@ -189,6 +185,7 @@ int main()
                         inputText.pop_back();
 
                         // Move the cursor back and overwrite the character with a space
+                        cursorPositionX = (cursorPositionX > 1) ? (cursorPositionX - 1) : 1;
                         int curX, curY;
                         getyx(inputWin, curY, curX);
                         if (curX > 1)
@@ -198,40 +195,39 @@ int main()
                             wrefresh(inputWin);
                         }
                     }
-
-                    break;
                 }
+                break;
 
             case KEY_LEFT:
                 {
                     // Move the cursor to the left
-                    if (cursorX > 1)
+                    if (cursorPositionX > 1)
                     {
-                        cursorX--;
-                        wmove(inputWin, 1, cursorX);
+                        cursorPositionX--;
+                        wmove(inputWin, 1, cursorPositionX);
                         wrefresh(inputWin);
                     }
-
-                    break;
                 }
+                break;
+
             case KEY_RIGHT:
                 {
                     // Move the cursor to the right
-                    if (cursorX < chatWidth - 1 && cursorX <= (int)inputText.length())
+                    if (cursorPositionX < chatWidth - 1 && cursorPositionX <= (int)inputText.length())
                     {
-                        cursorX++;
-                        wmove(inputWin, 1, cursorX);
+                        cursorPositionX++;
+                        wmove(inputWin, 1, cursorPositionX);
                         wrefresh(inputWin);
                     }
-
-                    break;
                 }
+                break;
+
             default:
                 // Insert the character at the cursor position within the input text
-                if (cursorX <= chatWidth - 1)
+                if (cursorPositionX <= chatWidth - 1)
                 {
-                    inputText.insert(cursorX - 1, 1, static_cast<char>(ch));
-                    cursorX++;
+                    inputText.insert(cursorPositionX - 1, 1, static_cast<char>(ch));
+                    cursorPositionX++;
 
                     // Clear and redraw the input window with the updated input text
                     werase(inputWin);
