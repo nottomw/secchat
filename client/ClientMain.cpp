@@ -5,7 +5,9 @@
 #include <cstdio>
 #include <iostream>
 #include <ncurses.h>
+#include <string>
 #include <thread>
+#include <vector>
 
 // int main(int argc, char **argv)
 //{
@@ -58,13 +60,6 @@
 //    return 0;
 //}
 
-#include <iostream>
-#include <ncurses.h>
-#include <string>
-#include <vector>
-
-static bool sIsRunning = true;
-
 void handleCtrlC(int signal)
 {
     endwin(); // Clean up ncurses
@@ -93,7 +88,7 @@ static void drawChatWindow( //
     wrefresh(chatWin);
 }
 
-int main()
+static bool startChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int *chatHeight, int *chatWidth)
 {
     initscr();
     cbreak();
@@ -105,7 +100,7 @@ int main()
     {
         endwin();
         utils::log("Error: Terminal does not support color.\n");
-        return 1;
+        return false;
     }
 
     start_color();
@@ -117,16 +112,16 @@ int main()
 
     // Calculate the height of the input and chat windows
     int inputHeight = 3;
-    int chatHeight = rows - inputHeight - 1;
-    int chatWidth = cols - 2; // Exclude the borders
+    *chatHeight = rows - inputHeight - 1;
+    *chatWidth = cols - 2; // Exclude the borders
 
     // Create the chat window
-    WINDOW *chatWin = newwin(chatHeight, cols, 0, 0);
+    chatWin = newwin(*chatHeight, cols, 0, 0);
     box(chatWin, 0, 0);
     wrefresh(chatWin);
 
     // Create the input window
-    WINDOW *inputWin = newwin(inputHeight, cols, rows - inputHeight, 0);
+    inputWin = newwin(inputHeight, cols, rows - inputHeight, 0);
     box(inputWin, 0, 0);
     wrefresh(inputWin);
 
@@ -135,18 +130,33 @@ int main()
     mvhline(rows - inputHeight - 1, 0, ACS_HLINE, cols);
     attroff(COLOR_PAIR(1));
 
+    // Show the cursor
+    curs_set(1);
+
+    return true;
+}
+
+int main()
+{
+    WINDOW *chatWin = nullptr;
+    WINDOW *inputWin = nullptr;
+    int chatHeight = 0;
+    int chatWidth = 0;
+
+    const bool tuiStarted = startChatTUI(chatWin, inputWin, &chatHeight, &chatWidth);
+    if (!tuiStarted)
+    {
+        return 0;
+    }
+
     std::vector<std::string> formattedMessages;
     std::string inputText; // Stores the user's input
 
     int cursorPositionX = 1;
 
-    // Show the cursor
-    curs_set(1);
-
     signal(SIGINT, handleCtrlC);
 
-    // Main loop
-    while (sIsRunning)
+    while (true)
     {
         drawChatWindow(chatWin, formattedMessages, chatHeight, chatWidth);
 
