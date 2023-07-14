@@ -60,6 +60,8 @@
 //    return 0;
 //}
 
+static std::vector<std::string> formattedMessages;
+
 void handleCtrlC(int signal)
 {
     endwin(); // Clean up ncurses
@@ -88,7 +90,7 @@ static void drawChatWindow( //
     wrefresh(chatWin);
 }
 
-static bool startChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int *chatHeight, int *chatWidth)
+static bool initializeChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int &chatHeight, int &chatWidth)
 {
     initscr();
     cbreak();
@@ -112,11 +114,11 @@ static bool startChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int *chatHeight, i
 
     // Calculate the height of the input and chat windows
     int inputHeight = 3;
-    *chatHeight = rows - inputHeight - 1;
-    *chatWidth = cols - 2; // Exclude the borders
+    chatHeight = rows - inputHeight - 1;
+    chatWidth = cols - 2; // Exclude the borders
 
     // Create the chat window
-    chatWin = newwin(*chatHeight, cols, 0, 0);
+    chatWin = newwin(chatHeight, cols, 0, 0);
     box(chatWin, 0, 0);
     wrefresh(chatWin);
 
@@ -136,24 +138,9 @@ static bool startChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int *chatHeight, i
     return true;
 }
 
-int main()
+void runChatTUI(WINDOW *chatWin, WINDOW *inputWin, int &chatHeight, int &chatWidth)
 {
-    signal(SIGINT, handleCtrlC);
-
-    WINDOW *chatWin = nullptr;
-    WINDOW *inputWin = nullptr;
-    int chatHeight = 0;
-    int chatWidth = 0;
-
-    const bool tuiStarted = startChatTUI(chatWin, inputWin, &chatHeight, &chatWidth);
-    if (!tuiStarted)
-    {
-        return 0;
-    }
-
-    std::vector<std::string> formattedMessages;
     std::string inputText;
-
     int cursorPositionX = 1;
 
     bool tuiShouldRun = true;
@@ -270,6 +257,24 @@ int main()
     delwin(inputWin);
     delwin(chatWin);
     endwin();
+}
+
+int main()
+{
+    signal(SIGINT, handleCtrlC);
+
+    WINDOW *chatWin = nullptr;
+    WINDOW *inputWin = nullptr;
+    int chatHeight = 0;
+    int chatWidth = 0;
+
+    const bool tuiStarted = initializeChatTUI(chatWin, inputWin, chatHeight, chatWidth);
+    if (!tuiStarted)
+    {
+        return 0;
+    }
+
+    runChatTUI(chatWin, inputWin, chatHeight, chatWidth);
 
     return 0;
 }
