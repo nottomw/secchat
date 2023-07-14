@@ -28,8 +28,8 @@ public:
         kNewUserIdAssigned, // sent by server
 
         kJoinChatRoom,   // user
+        kLeaveChatRoom,  // user
         kChatRoomJoined, // server - room already exists
-        kChatRoomCreated // server - new room created
     };
 
     struct Header

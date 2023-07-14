@@ -190,6 +190,8 @@ void SecchatServer::joinUserToRoom( //
         }
         else
         {
+            // TODO: should reply with kChatRoomJoined
+
             room->get().mJoinedUsers.push_back(user);
             printf("[server] room already exists - user joined\n");
         }
