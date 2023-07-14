@@ -18,7 +18,10 @@ void printCharactersHex( //
 template <typename... Ts>
 void log(const char *const fmt, Ts... params)
 {
+#if (!LOGGING_QUIET)
     printf(fmt, params...);
+#endif
+    // TODO: log to file
 }
 
 } // namespace utils

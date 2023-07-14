@@ -7,24 +7,8 @@
 #include <ncurses.h>
 #include <thread>
 
-// void stopTheClient(int signal)
-//{
-//     // End ncurses mode
-//     endwin();
-
-//    // Exit the program
-//    exit(signal);
-//}
-
 // int main(int argc, char **argv)
 //{
-//     signal(SIGINT, stopTheClient);
-
-//    sigset_t set;
-//    sigemptyset(&set);
-//    sigaddset(&set, SIGINT);
-//    pthread_sigmask(SIG_BLOCK, &set, NULL);
-
 //    std::string userName{"testUser1"};
 //    if (argc >= 2)
 //    {
@@ -36,33 +20,6 @@
 //    {
 //        room = argv[2];
 //    }
-
-//    initscr();
-//    cbreak();
-//    start_color();
-
-//    keypad(stdscr, TRUE);
-
-//    printw("Print from ncurses mode...");
-//    refresh();
-
-//    // Create the chat window
-//    WINDOW *chatWin = newwin(LINES - 2, COLS, 0, 0);
-//    scrollok(chatWin, TRUE);
-//    //    wbkgd(chatWin, COLOR_PAIR(1)); // Set the background color of the chat window
-//    wrefresh(chatWin);
-
-//    // Create the input window
-//    WINDOW *inputWin = newwin(1, COLS, LINES - 1, 0);
-//    wrefresh(inputWin);
-
-//    // Print a blue line above the input window
-//    wattron(chatWin, COLOR_PAIR(1));                  // Set the color pair for the blue line
-//    mvwhline(chatWin, LINES - 3, 0, ACS_HLINE, COLS); // Draw a horizontal line
-//    wattroff(chatWin, COLOR_PAIR(1));                 // Turn off the color pair
-
-//    // Enable keypad mode to capture special keys
-//    keypad(inputWin, TRUE); // ?????????
 
 //    utils::log("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
 
@@ -83,35 +40,11 @@
 //    //    utils::log("[client] now chatting in %s\n", room.c_str());
 //    while (true)
 //    {
-//        wclear(chatWin);
-//        for (size_t i = 0; i < messages.size(); ++i)
-//        {
-//            mvwprintw(chatWin, i, 0, "%s", messages[i].c_str());
-//        }
-//        wrefresh(chatWin);
-
-//        // Move cursor to the input window
-//        wmove(inputWin, 0, 0);
-//        wrefresh(inputWin);
-
-//        auto input = std::unique_ptr<char[]>(new char[COLS]);
-//        wgetnstr(inputWin, input.get(), COLS);
-
-//        messages.push_back(std::string(input.get()));
-
 //        //        utils::log("[client][%s] > ", room.c_str());
 //        //        fflush(stdout);
 
 //        //        std::string message;
 //        //        std::getline(std::cin, message);
-
-//        // Clear the input window
-//        werase(inputWin);
-//        wrefresh(inputWin);
-
-//        // Clear the chat window
-//        werase(chatWin);
-//        wrefresh(chatWin);
 
 //        //        const bool sendOk = client.sendMessage(room, message);
 //        //        if (!sendOk)
@@ -121,11 +54,6 @@
 //    }
 
 //    client.disconnectFromServer();
-
-//    // Clean up and exit
-//    delwin(inputWin);
-//    delwin(chatWin);
-//    endwin();
 
 //    return 0;
 //}
