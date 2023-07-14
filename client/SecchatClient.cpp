@@ -1,6 +1,5 @@
 #include "SecchatClient.hpp"
 
-#include "Proto.hpp"
 #include "Utils.hpp"
 
 #include <chrono>
@@ -65,27 +64,33 @@ void SecchatClient::startChat(const std::string &userName)
     serverNewUserAnnounce();
 }
 
-void SecchatClient::joinRoom(const std::string &roomName)
+bool SecchatClient::joinRoom(const std::string &roomName)
 {
     printf("[client] joining room %s\n", roomName.c_str());
 
     serverJoinRoom(roomName);
 
-    // TODO: wait until join confirmed or denied
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-    mJoinedRooms.push_back(roomName);
+    std::unique_lock lk{mJoinedCondVarMutex};
+    mJoinedCondVar.wait( //
+        lk,
+        [&] { //
+            const auto it = std::find(mJoinedRooms.begin(), mJoinedRooms.end(), roomName);
+            if (it != mJoinedRooms.end())
+            {
+                return true;
+            }
 
-    while (true)
-    {
-        printf("[client] > ");
-        fflush(stdout);
+            return false;
+        });
 
-        std::string dataToSend;
-        std::getline(std::cin, dataToSend);
+    return true;
+}
 
-        printf("NOT SENDING: %s\n", dataToSend.c_str());
-        //        mTransport.sendBlocking((uint8_t *)dataToSend.c_str(), dataToSend.size());
-    }
+void SecchatClient::sendMessage(const std::string &roomName, const std::string &message)
+{
+    printf("[client] sendMessage: NOT SENDING: %s\n", message.c_str());
+    // TODO: implement actual send message
+    // mTransport.sendBlocking();
 }
 
 void SecchatClient::handlePacket( //
@@ -102,6 +107,9 @@ void SecchatClient::handlePacket( //
             case Proto::PayloadType::kNewUserIdAssigned:
                 printf("[client] user ID assigned by server: ");
                 utils::printCharacters(payload.payload.get(), payload.size);
+                break;
+            case Proto::PayloadType::kChatRoomJoined:
+                handleChatRoomJoined(framesIt);
                 break;
             default:
                 printf("[server] incorrect frame, NOT HANDLED: ");
@@ -154,4 +162,19 @@ void SecchatClient::serverJoinRoom(const std::string &roomName)
     assert(buffer);
 
     mTransport.sendBlocking(buffer.get(), frame.getSize());
+}
+
+void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
+{
+    Proto::Payload &payload = frame.getPayload();
+
+    std::string justJoinedChatRoomName;
+    justJoinedChatRoomName.assign((char *)payload.payload.get(), payload.size);
+
+    {
+        std::lock_guard<std::mutex> lk{mJoinedCondVarMutex};
+        mJoinedRooms.push_back(justJoinedChatRoomName);
+    }
+
+    mJoinedCondVar.notify_all();
 }

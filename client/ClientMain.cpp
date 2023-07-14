@@ -1,6 +1,7 @@
 #include "SecchatClient.hpp"
 
 #include <cstdio>
+#include <iostream>
 
 int main(int argc, char **argv)
 {
@@ -22,9 +23,29 @@ int main(int argc, char **argv)
     client.connectToServer("127.0.0.1", 12345);
 
     client.startChat(userName);
-    client.joinRoom(room);
 
-    // chatting...
+    const bool joined = client.joinRoom(room);
+    if (!joined)
+    {
+        printf("[client] could not join room %s\n", room.c_str());
+        return 0;
+    }
+
+    // TODO: terminal stuff - display messages on top, prompt bottoms
+
+    printf("[client] now chatting in %s\n", room.c_str());
+    while (true)
+    {
+        // chatting...
+
+        printf("[client][%s] > ", room.c_str());
+        fflush(stdout);
+
+        std::string message;
+        std::getline(std::cin, message);
+
+        client.sendMessage(room, message);
+    }
 
     client.disconnectFromServer();
 

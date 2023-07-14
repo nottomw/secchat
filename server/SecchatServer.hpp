@@ -69,7 +69,7 @@ private:
         Proto::Frame &frame,
         std::shared_ptr<Session> session);
 
-    void joinUserToRoom(const User &user, const std::string &roomName);
+    bool joinUserToRoom(const User &user, const std::string &roomName);
 
     std::optional<User *> verifyUserExists(const std::string &userName);
 };

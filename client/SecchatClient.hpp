@@ -2,6 +2,9 @@
 
 #include "Crypto.hpp"
 #include "DataTransport.hpp"
+#include "Proto.hpp"
+
+#include <condition_variable>
 
 class SecchatClient
 {
@@ -12,7 +15,8 @@ public:
     void disconnectFromServer();
 
     void startChat(const std::string &userName);
-    void joinRoom(const std::string &roomName);
+    bool joinRoom(const std::string &roomName);
+    void sendMessage(const std::string &roomName, const std::string &message);
 
 private:
     Crypto mCrypto;
@@ -30,6 +34,9 @@ private:
     std::string mMyUserName;
     std::vector<std::string> mJoinedRooms;
 
+    std::mutex mJoinedCondVarMutex;
+    std::condition_variable mJoinedCondVar;
+
     void handlePacket( //
         const uint8_t *const data,
         const uint32_t dataLen,
@@ -37,4 +44,5 @@ private:
 
     void serverNewUserAnnounce();
     void serverJoinRoom(const std::string &roomName);
+    void handleChatRoomJoined(Proto::Frame &frame);
 };

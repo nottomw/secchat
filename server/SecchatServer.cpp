@@ -27,7 +27,7 @@ void SecchatServer::start(const uint16_t serverPort)
     mTransport.onDisconnect( //
         [&](std::weak_ptr<Session> session) {
             // TODO: this async session/user collection is problematic and
-            // causes mutex hell, maybe this should be transactional in some way
+            // causes mutex hell, maybe this should be transactional (some command queue)
 
             auto sessPtr = session.lock();
             assert(sessPtr); // this ptr should never be incorrect
@@ -213,7 +213,7 @@ void SecchatServer::handleNewUser( //
 
 void SecchatServer::handleJoinChatRoom( //
     Proto::Frame &frame,
-    std::shared_ptr<Session> /*session*/)
+    std::shared_ptr<Session> session)
 {
     Proto::Header &header = frame.getHeader();
     Proto::Payload &payload = frame.getPayload();
@@ -239,10 +239,30 @@ void SecchatServer::handleJoinChatRoom( //
            chatRoomName.c_str());
 
     const User *const user = *userOk; // dereference std::optional
-    joinUserToRoom(*user, chatRoomName);
+    const bool joined = joinUserToRoom(*user, chatRoomName);
+    if (joined)
+    {
+        std::string source{"server"};
+
+        Proto::Frame frame{//
+                           (uint32_t)source.size(),
+                           (uint32_t)userName.size(),
+                           (uint32_t)chatRoomName.size()};
+        Proto::populateHeader(frame, source, userName);
+        Proto::populatePayload( //
+            frame,
+            Proto::PayloadType::kChatRoomJoined,
+            payload.payload.get(), // chat room name
+            payload.size);
+
+        auto rawFrame = Proto::serialize(frame);
+
+        const bool sendOk = mTransport.sendBlocking(rawFrame.get(), frame.getSize(), session);
+        assert(sendOk);
+    }
 }
 
-void SecchatServer::joinUserToRoom( //
+bool SecchatServer::joinUserToRoom( //
     const SecchatServer::User &user,
     const std::string &roomName)
 {
@@ -274,14 +294,14 @@ void SecchatServer::joinUserToRoom( //
         if (joinedUser)
         {
             printf("[server] room already exists - user already joined, DROP\n");
-            return;
+            return true;
         }
         else
         {
-            // TODO: should reply with kChatRoomJoined
-
             room->get().mJoinedUsers.push_back(user.id);
             printf("[server] room already exists - user joined\n");
+
+            return true;
         }
     }
     else
@@ -296,10 +316,12 @@ void SecchatServer::joinUserToRoom( //
             mRooms.push_back(std::move(newRoom));
         }
 
-        // TODO: should reply with kChatRoomJoined
-
         printf("[server] new room created, user joined\n");
+
+        return true;
     }
+
+    return false;
 }
 
 std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::string &userName)
