@@ -5,64 +5,14 @@
 #include <cstdio>
 #include <iostream>
 #include <ncurses.h>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
-// int main(int argc, char **argv)
-//{
-//    std::string userName{"testUser1"};
-//    if (argc >= 2)
-//    {
-//        userName = argv[1];
-//    }
+static std::vector<std::string> gFormattedMessagesToTUI;
 
-//    std::string room{"testRoom"};
-//    if (argc >= 3)
-//    {
-//        room = argv[2];
-//    }
-
-//    utils::log("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
-
-//    SecchatClient client;
-//    client.connectToServer("127.0.0.1", 12345);
-
-//    client.startChat(userName);
-
-//    const bool joined = client.joinRoom(room);
-//    if (!joined)
-//    {
-//        utils::log("[client] could not join room %s\n", room.c_str());
-//        return 0;
-//    }
-
-//    std::vector<std::string> messages;
-
-//    //    utils::log("[client] now chatting in %s\n", room.c_str());
-//    while (true)
-//    {
-//        //        utils::log("[client][%s] > ", room.c_str());
-//        //        fflush(stdout);
-
-//        //        std::string message;
-//        //        std::getline(std::cin, message);
-
-//        //        const bool sendOk = client.sendMessage(room, message);
-//        //        if (!sendOk)
-//        //        {
-//        //            utils::log("[client] sending %s failed...\n", message.c_str());
-//        //        }
-//    }
-
-//    client.disconnectFromServer();
-
-//    return 0;
-//}
-
-static std::vector<std::string> formattedMessages;
-
-void handleCtrlC(int signal)
+static void handleCtrlC(int /*signal*/)
 {
     endwin(); // Clean up ncurses
     exit(0);  // Terminate the program
@@ -138,7 +88,13 @@ static bool initializeChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int &chatHeig
     return true;
 }
 
-void runChatTUI(WINDOW *chatWin, WINDOW *inputWin, int &chatHeight, int &chatWidth)
+static void runChatTUI( //
+    WINDOW *chatWin,
+    WINDOW *inputWin,
+    int &chatHeight,
+    int &chatWidth,
+    SecchatClient &client,
+    const std::string &joinedRoom)
 {
     std::string inputText;
     int cursorPositionX = 1;
@@ -148,13 +104,14 @@ void runChatTUI(WINDOW *chatWin, WINDOW *inputWin, int &chatHeight, int &chatWid
     {
         // Clear the scrollback if it's too big
         constexpr int kMaxScrollbackLines = 100;
-        if (formattedMessages.size() > kMaxScrollbackLines)
+        if (gFormattedMessagesToTUI.size() > kMaxScrollbackLines)
         {
-            const int toBeErased = (formattedMessages.size() - kMaxScrollbackLines);
-            formattedMessages.erase(formattedMessages.begin(), formattedMessages.begin() + toBeErased);
+            const int toBeErased = (gFormattedMessagesToTUI.size() - kMaxScrollbackLines);
+            gFormattedMessagesToTUI.erase(gFormattedMessagesToTUI.begin(),
+                                          gFormattedMessagesToTUI.begin() + toBeErased);
         }
 
-        drawChatWindow(chatWin, formattedMessages, chatHeight, chatWidth);
+        drawChatWindow(chatWin, gFormattedMessagesToTUI, chatHeight, chatWidth);
 
         // Move the cursor to the input window
         wmove(inputWin, 1, cursorPositionX);
@@ -176,7 +133,18 @@ void runChatTUI(WINDOW *chatWin, WINDOW *inputWin, int &chatHeight, int &chatWid
                     // Add the message to the chat
                     std::string formattedMessage{"<my_user_name> "};
                     formattedMessage += inputText;
-                    formattedMessages.push_back(formattedMessage);
+                    gFormattedMessagesToTUI.push_back(formattedMessage);
+
+                    const bool sendOk = client.sendMessage(joinedRoom, inputText);
+                    if (!sendOk)
+                    {
+                        std::stringstream ss;
+                        ss << "[client] sending ";
+                        ss << inputText;
+                        ss << " failed...\n";
+
+                        gFormattedMessagesToTUI.push_back(ss.str());
+                    }
 
                     // move cursor back
                     cursorPositionX = 1;
@@ -259,9 +227,36 @@ void runChatTUI(WINDOW *chatWin, WINDOW *inputWin, int &chatHeight, int &chatWid
     endwin();
 }
 
-int main()
+int main(int argc, char **argv)
 {
     signal(SIGINT, handleCtrlC);
+
+    std::string userName{"testUser1"};
+    if (argc >= 2)
+    {
+        userName = argv[1];
+    }
+
+    std::string room{"testRoom"};
+    if (argc >= 3)
+    {
+        room = argv[2];
+    }
+
+    utils::log("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
+
+    SecchatClient client;
+    client.connectToServer("127.0.0.1", 12345);
+    client.startChat(userName);
+
+    const bool joined = client.joinRoom(room);
+    if (!joined)
+    {
+        utils::log("[client] could not join room %s\n", room.c_str());
+        return 0;
+    }
+
+    utils::log("[client] now chatting in %s\n", room.c_str());
 
     WINDOW *chatWin = nullptr;
     WINDOW *inputWin = nullptr;
@@ -274,7 +269,11 @@ int main()
         return 0;
     }
 
-    runChatTUI(chatWin, inputWin, chatHeight, chatWidth);
+    runChatTUI(chatWin, inputWin, chatHeight, chatWidth, client, room);
+
+    utils::log("[client] exiting...");
+
+    client.disconnectFromServer();
 
     return 0;
 }
