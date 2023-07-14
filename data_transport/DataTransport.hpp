@@ -13,9 +13,11 @@ public:
     ~DataTransport();
 
     using FnOnConnectHandler = std::function<void(void)>;
+    using FnOnDisconnectHandler = std::function<void(std::weak_ptr<Session>)>;
 
     void serve(const uint16_t port);
     void onServerConnect(const FnOnConnectHandler handler);
+    void onDisconnect(const FnOnDisconnectHandler handler);
 
     void connect(const std::string &ipAddr, const uint16_t port);
 
@@ -51,6 +53,7 @@ private:
     std::vector<std::shared_ptr<Session>> mSessions;
 
     FnOnConnectHandler mOnConnectHandler;
+    FnOnDisconnectHandler mOnDisconnectHandler;
 
     bool mInvalidatedSessionCollectorShouldRun;
     std::thread mInvalidatedSessionsCollectorThread;

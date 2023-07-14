@@ -21,11 +21,10 @@ private:
     bool mReaderShouldRun;
     std::thread mChatReader;
 
-    uint32_t mClientsCount;
-
     struct User
     {
         std::string mUserName;
+        std::weak_ptr<Session> mSession;
     };
 
     std::vector<User> mUsers;
@@ -53,5 +52,5 @@ private:
 
     void joinUserToRoom(const User &user, const std::string &roomName);
 
-    std::optional<User> verifyUserExists(const std::string &userName) const;
+    std::optional<User *> verifyUserExists(const std::string &userName);
 };

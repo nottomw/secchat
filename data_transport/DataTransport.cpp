@@ -53,6 +53,11 @@ void DataTransport::onServerConnect(const DataTransport::FnOnConnectHandler hand
     mOnConnectHandler = handler;
 }
 
+void DataTransport::onDisconnect(const DataTransport::FnOnDisconnectHandler handler)
+{
+    mOnDisconnectHandler = handler;
+}
+
 void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
 {
     setTransportMode(Mode::kClient);
@@ -235,8 +240,8 @@ void DataTransport::invalidatedSessionsCollect()
     {
         uint32_t removedSessions = 0U;
 
-        auto removeCondition =                                     //
-            [&removedSessions](std::shared_ptr<Session> session) { //
+        auto removeCondition =                      //
+            [&](std::shared_ptr<Session> session) { //
                 const bool sessionValid = session->isValid();
 
                 if (!sessionValid)
@@ -245,6 +250,10 @@ void DataTransport::invalidatedSessionsCollect()
                            session->getSocket().remote_endpoint().address().to_string().c_str());
                     fflush(stdout);
                     removedSessions += 1U;
+
+                    // Calling disconnect handler here can be pretty late, maybe
+                    // should be called during invalidate() on session?
+                    mOnDisconnectHandler(session);
 
                     return true; // should be removed
                 }

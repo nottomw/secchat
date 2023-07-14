@@ -5,7 +5,6 @@
 
 SecchatServer::SecchatServer()
     : mReaderShouldRun{true}
-    , mClientsCount{0U}
 {
     if (!mCrypto.init())
     {
@@ -17,14 +16,58 @@ void SecchatServer::start(const uint16_t serverPort)
 {
     mTransport.serve(serverPort);
 
-    // TODO: maybe on server connect should provide a way to talk only
-    // to the new client (socket? overloaded sendBlocking()?)
     mTransport.onServerConnect( //
         [&] {
-            mClientsCount += 1U;
-            printf("[server] new connection, clients: %d...\n", mClientsCount);
-
+            printf("[server] accepting new connection...\n");
             fflush(stdout);
+        });
+
+    mTransport.onDisconnect( //
+        [&](std::weak_ptr<Session> session) {
+            auto sessPtr = session.lock();
+            assert(sessPtr); // this ptr should never be incorrect
+
+            // Remove dropped user from all rooms he joined...
+            for (auto &roomIt : mRooms)
+            {
+                for (auto userInRoomIt = roomIt.mJoinedUsers.begin(); //
+                     userInRoomIt != roomIt.mJoinedUsers.end();
+                     /* incremented in body */)
+                {
+                    auto userInRoomSession = userInRoomIt->mSession.lock();
+                    assert(userInRoomSession);
+
+                    if (*userInRoomSession == *sessPtr)
+                    {
+                        printf("[server] removing user %s from room %s\n", //
+                               userInRoomIt->mUserName.c_str(),
+                               roomIt.roomName.c_str());
+                        userInRoomIt = roomIt.mJoinedUsers.erase(userInRoomIt);
+                    }
+                    else
+                    {
+                        userInRoomIt++;
+                    }
+                }
+            }
+
+            // Remove user...
+            mUsers.erase(                      //
+                std::remove_if(mUsers.begin(), //
+                               mUsers.end(),
+                               [&](User &user) { //
+                                   auto userSessionPtr = user.mSession.lock();
+                                   if (*userSessionPtr == *sessPtr)
+                                   {
+                                       printf("[server] removing user %s\n", user.mUserName.c_str());
+                                       return true; // remove
+                                   }
+
+                                   return false;
+                               }),
+                mUsers.end());
+
+            printf("[server] currently %ld users active\n", mUsers.size());
         });
 
     mChatReader = std::thread{[&]() {
@@ -89,16 +132,24 @@ void SecchatServer::handleNewUser( //
     const auto existingUser = verifyUserExists(userName);
     if (existingUser)
     {
-        printf("[server] user %s already exists, DROP\n", userName.c_str());
+        // TODO: what if it's same user but new session?
+        // for now just overwrite the session
+        User *const user = *existingUser;
+        user->mSession = session;
+
+        printf("[server] user %s already exists, DROP (but update the session)\n", userName.c_str());
         return;
     }
 
     User user;
     user.mUserName = userName;
+    user.mSession = session;
 
     printf("[server] new user created: %s\n", user.mUserName.c_str());
 
     mUsers.push_back(std::move(user));
+
+    printf("[server] currently %ld users active\n", mUsers.size());
 
     std::string destination;
     destination.assign(frame.getHeader().source.get(), frame.getHeader().sourceSize);
@@ -153,7 +204,8 @@ void SecchatServer::handleJoinChatRoom( //
            userName.c_str(),
            chatRoomName.c_str());
 
-    joinUserToRoom(*userOk, chatRoomName);
+    const User *const user = *userOk; // dereference std::optional
+    joinUserToRoom(*user, chatRoomName);
 }
 
 void SecchatServer::joinUserToRoom( //
@@ -210,16 +262,16 @@ void SecchatServer::joinUserToRoom( //
     }
 }
 
-std::optional<SecchatServer::User> SecchatServer::verifyUserExists(const std::string &userName) const
+std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::string &userName)
 {
     // User identity verification also needed...
 
     // Maybe should change the vector to map
-    for (const auto &userIt : mUsers)
+    for (auto &userIt : mUsers)
     {
         if (userIt.mUserName == userName)
         {
-            return userIt;
+            return &userIt;
         }
     }
 

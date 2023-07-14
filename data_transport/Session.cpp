@@ -1,16 +1,22 @@
 #include "Session.hpp"
 
+uint32_t Session::mGlobalSessionCounter = 0U;
+
 Session::Session(asio::ip::tcp::socket &&s)
     : mRawBuffer{}
     , mSocket{std::move(s)}
     , mValid{true}
+    , mSessionId{mGlobalSessionCounter++}
+    , mReceivedDataQueue{}
 {
 }
 
 Session::Session(Session &&s)
-    : mSocket{std::move(s.mSocket)}
-    , mReceivedDataQueue{std::move(s.mReceivedDataQueue)}
+    : mRawBuffer{}
+    , mSocket{std::move(s.mSocket)}
     , mValid{true}
+    , mSessionId{mGlobalSessionCounter++}
+    , mReceivedDataQueue{std::move(s.mReceivedDataQueue)}
 {
 }
 
@@ -56,6 +62,16 @@ void Session::invalidate()
 bool Session::isValid() const
 {
     return mValid;
+}
+
+uint32_t Session::getId() const
+{
+    return mSessionId;
+}
+
+bool Session::operator==(const Session &s)
+{
+    return (getId() == s.getId());
 }
 
 bool Session::getData(uint8_t *const buffer, const uint32_t bufferSizeMax, uint32_t *const bufferReceivedLen)

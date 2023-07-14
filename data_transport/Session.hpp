@@ -18,12 +18,11 @@ public:
     void invalidate();
     bool isValid() const;
 
+    uint32_t getId() const;
+
+    bool operator==(const Session &s);
+
 private:
-    static constexpr uint32_t kMaxBufSize = 1024;
-    uint8_t mRawBuffer[kMaxBufSize];
-
-    asio::ip::tcp::socket mSocket;
-
     struct ReceivedData
     {
         ReceivedData(const size_t bufferLen);
@@ -31,10 +30,18 @@ private:
         size_t mBufferLen;
     };
 
-    std::mutex mReceivedDataQueueMutex;
-    std::deque<ReceivedData> mReceivedDataQueue;
+    static constexpr uint32_t kMaxBufSize = 1024;
+    uint8_t mRawBuffer[kMaxBufSize];
+
+    asio::ip::tcp::socket mSocket;
 
     bool mValid;
+
+    static uint32_t mGlobalSessionCounter;
+    uint32_t mSessionId;
+
+    std::mutex mReceivedDataQueueMutex;
+    std::deque<ReceivedData> mReceivedDataQueue;
 
     bool getData( //
         uint8_t *const buffer,
