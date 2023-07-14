@@ -6,10 +6,11 @@
 #include <iostream>
 #include <thread>
 
-SecchatClient::SecchatClient()
+SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
     : mCrypto{}
     , mTransport{}
     , mReaderShouldRun{true}
+    , mMessageUIScrollback{messageUIScrollback}
 {
     if (!mCrypto.init())
     {
@@ -231,10 +232,14 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
     roomName.assign(header.destination.get(), header.destinationSize);
     message.assign((char *)payload.payload.get(), payload.size);
 
-    // Since no proper UI is implemented, for now just display the message...
-    utils::log("[%s] <%s> %s\n", //
-               roomName.c_str(),
-               userName.c_str(),
-               message.c_str());
-    fflush(stdout);
+    std::string formattedMessage;
+    formattedMessage += "[";
+    formattedMessage += roomName;
+    formattedMessage += "]";
+    formattedMessage += "<";
+    formattedMessage += userName;
+    formattedMessage += "> ";
+    formattedMessage += message;
+
+    mMessageUIScrollback.push_back(formattedMessage);
 }

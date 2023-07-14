@@ -9,7 +9,7 @@
 class SecchatClient
 {
 public:
-    SecchatClient();
+    SecchatClient(std::vector<std::string> &messageUIScrollback);
 
     void connectToServer(const std::string &ipAddr, const uint16_t port);
     void disconnectFromServer();
@@ -36,6 +36,8 @@ private:
 
     std::mutex mJoinedCondVarMutex;
     std::condition_variable mJoinedCondVar;
+
+    std::vector<std::string> &mMessageUIScrollback;
 
     void handlePacket( //
         const uint8_t *const data,

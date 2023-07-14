@@ -38,7 +38,8 @@ void Session::start()
 
                                     start(); // continue receiving
                                 }
-                                else if (ec == asio::error::eof)
+                                else if ((ec == asio::error::eof) || //
+                                         (ec == asio::error::connection_reset))
                                 {
                                     invalidate();
                                 }

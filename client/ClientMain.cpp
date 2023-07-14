@@ -48,6 +48,9 @@ static bool initializeChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int &chatHeig
     keypad(stdscr, TRUE);
     curs_set(0);
 
+    constexpr int kTuiInputTimeoutMs = 1000;
+    timeout(kTuiInputTimeoutMs);
+
     if (!has_colors())
     {
         endwin();
@@ -118,6 +121,12 @@ static void runChatTUI( //
         wrefresh(inputWin);
 
         int ch = getch();
+        if (ch == ERR)
+        {
+            // timed out
+            continue;
+        }
+
         switch (ch)
         {
             case '\n':
@@ -128,6 +137,7 @@ static void runChatTUI( //
                     if ((inputText == cmdQuit) || (inputText == cmdQuitShort))
                     {
                         tuiShouldRun = false;
+                        continue;
                     }
 
                     // Add the message to the chat
@@ -245,7 +255,7 @@ int main(int argc, char **argv)
 
     utils::log("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
 
-    SecchatClient client;
+    SecchatClient client{gFormattedMessagesToTUI};
     client.connectToServer("127.0.0.1", 12345);
     client.startChat(userName);
 
