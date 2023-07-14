@@ -3,6 +3,8 @@
 #include "Proto.hpp"
 #include "Utils.hpp"
 
+uint32_t SecchatServer::User::mGlobalUserId = 0U;
+
 SecchatServer::SecchatServer()
     : mReaderShouldRun{true}
 {
@@ -24,19 +26,24 @@ void SecchatServer::start(const uint16_t serverPort)
 
     mTransport.onDisconnect( //
         [&](std::weak_ptr<Session> session) {
+            // TODO: this async session/user collection is problematic and
+            // causes mutex hell, maybe this should be transactional in some way
+
             auto sessPtr = session.lock();
             assert(sessPtr); // this ptr should never be incorrect
 
             // Remove dropped user from all rooms he joined...
             for (auto &roomIt : mRooms)
             {
+                std::lock_guard<std::mutex> lkRoom{roomIt.mRoomMutex};
                 auto &joinedUsers = roomIt.mJoinedUsers;
 
                 joinedUsers.erase(  //
                     std::remove_if( //
                         joinedUsers.begin(),
                         joinedUsers.end(),
-                        [&](User &user) { //
+                        [&](UserId userId) { //
+                            User &user = findUserById(userId);
                             auto userSessionPtr = user.mSession.lock();
                             if (*userSessionPtr == *sessPtr)
                             {
@@ -53,22 +60,28 @@ void SecchatServer::start(const uint16_t serverPort)
             }
 
             // Remove user...
-            mUsers.erase(                      //
-                std::remove_if(mUsers.begin(), //
-                               mUsers.end(),
-                               [&](User &user) { //
-                                   auto userSessionPtr = user.mSession.lock();
-                                   if (*userSessionPtr == *sessPtr)
-                                   {
-                                       printf("[server] removing user %s\n", user.mUserName.c_str());
-                                       return true; // remove
-                                   }
+            uint32_t userCount = 0U;
+            {
+                std::lock_guard<std::mutex> lk{mUsersMutex};
+                mUsers.erase(                      //
+                    std::remove_if(mUsers.begin(), //
+                                   mUsers.end(),
+                                   [&](User &user) { //
+                                       auto userSessionPtr = user.mSession.lock();
+                                       if (*userSessionPtr == *sessPtr)
+                                       {
+                                           printf("[server] removing user %s\n", user.mUserName.c_str());
+                                           return true; // remove
+                                       }
 
-                                   return false; // dont remove
-                               }),
-                mUsers.end());
+                                       return false; // dont remove
+                                   }),
+                    mUsers.end());
 
-            printf("[server] currently %ld users active\n", mUsers.size());
+                userCount = mUsers.size();
+            }
+
+            printf("[server] currently %d users active\n", userCount);
         });
 
     mChatReader = std::thread{[&]() {
@@ -90,6 +103,20 @@ void SecchatServer::stop()
 {
     mReaderShouldRun = false;
     mChatReader.join();
+}
+
+SecchatServer::User &SecchatServer::findUserById(const SecchatServer::UserId userId)
+{
+    std::lock_guard<std::mutex> lk{mUsersMutex};
+    for (auto &user : mUsers)
+    {
+        if (user.id == userId)
+        {
+            return user;
+        }
+    }
+
+    assert(nullptr == "findUserById - user not found");
 }
 
 void SecchatServer::handlePacket( //
@@ -148,9 +175,15 @@ void SecchatServer::handleNewUser( //
 
     printf("[server] new user created: %s\n", user.mUserName.c_str());
 
-    mUsers.push_back(std::move(user));
+    uint32_t usersCount = 0U;
 
-    printf("[server] currently %ld users active\n", mUsers.size());
+    {
+        std::lock_guard<std::mutex> lk{mUsersMutex};
+        mUsers.push_back(std::move(user));
+        usersCount = mUsers.size();
+    }
+
+    printf("[server] currently %d users active\n", usersCount);
 
     std::string destination;
     destination.assign(frame.getHeader().source.get(), frame.getHeader().sourceSize);
@@ -225,13 +258,15 @@ void SecchatServer::joinUserToRoom( //
 
     if (room)
     {
-        std::optional<User> joinedUser;
-        for (const auto &joinedUserIt : room->get().mJoinedUsers)
+        std::lock_guard<std::mutex> lkRoom{room->get().mRoomMutex};
+
+        std::optional<UserId> joinedUser;
+        for (const auto &joinedUserIDIt : room->get().mJoinedUsers)
         {
             // TODO: compare also identity
-            if (joinedUserIt.mUserName == user.mUserName)
+            if (joinedUserIDIt == user.id)
             {
-                joinedUser = joinedUserIt;
+                joinedUser = joinedUserIDIt;
                 break;
             }
         }
@@ -245,17 +280,21 @@ void SecchatServer::joinUserToRoom( //
         {
             // TODO: should reply with kChatRoomJoined
 
-            room->get().mJoinedUsers.push_back(user);
+            room->get().mJoinedUsers.push_back(user.id);
             printf("[server] room already exists - user joined\n");
         }
     }
     else
     {
         Room newRoom;
-        newRoom.roomName = roomName;
-        newRoom.mJoinedUsers.push_back(user);
 
-        mRooms.push_back(std::move(newRoom));
+        {
+            std::lock_guard<std::mutex> lkRoom{newRoom.mRoomMutex};
+            newRoom.roomName = roomName;
+            newRoom.mJoinedUsers.push_back(user.id);
+
+            mRooms.push_back(std::move(newRoom));
+        }
 
         // TODO: should reply with kChatRoomJoined
 
@@ -268,13 +307,27 @@ std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::
     // User identity verification also needed...
 
     // Maybe should change the vector to map
-    for (auto &userIt : mUsers)
     {
-        if (userIt.mUserName == userName)
+        std::lock_guard<std::mutex> lk{mUsersMutex};
+        for (auto &userIt : mUsers)
         {
-            return &userIt;
+            if (userIt.mUserName == userName)
+            {
+                return &userIt;
+            }
         }
     }
 
     return std::nullopt;
+}
+
+SecchatServer::User::User()
+    : id{mGlobalUserId++}
+{
+}
+
+SecchatServer::Room::Room(SecchatServer::Room &&other)
+    : roomName{std::move(other.roomName)}
+    , mJoinedUsers{std::move(other.mJoinedUsers)}
+{
 }

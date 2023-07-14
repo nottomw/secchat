@@ -21,21 +21,40 @@ private:
     bool mReaderShouldRun;
     std::thread mChatReader;
 
+    using UserId = uint32_t;
+
     struct User
     {
+        User();
+        User(User &&) = default;
+        User(const User &) = default;
+        User &operator=(const User &) = default;
+        User &operator=(User &&) = default;
+
+        static UserId mGlobalUserId;
+
+        UserId id;
         std::string mUserName;
         std::weak_ptr<Session> mSession;
     };
 
+    std::mutex mUsersMutex;
     std::vector<User> mUsers;
 
     struct Room
     {
+        Room() = default;
+        Room(Room &&other);
+
         std::string roomName;
-        std::vector<User> mJoinedUsers; // TODO: unnecessary copy of User - fixme
+        std::vector<UserId> mJoinedUsers;
+
+        std::mutex mRoomMutex;
     };
 
     std::vector<Room> mRooms;
+
+    User &findUserById(const UserId userId);
 
     void handlePacket( //
         const uint8_t *const data,
