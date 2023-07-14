@@ -21,6 +21,18 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
 {
     mTransport.connect(ipAddr, port);
 
+    mTransport.onDisconnect( //
+        [](std::weak_ptr<Session> /*sess*/) {
+            // For client there should be only a single session (to server),
+            // this means we got disconnected and have to handle this...
+            printf("[client] disconnected from server...\n");
+            fflush(stdout);
+
+            exit(0);
+            // TODO: the disconnect should probably trigger server connection retry,
+            // now it will just print message and exit...
+        });
+
     mChatReader = std::thread{[&]() { //
         while (mReaderShouldRun)
         {
@@ -86,7 +98,7 @@ bool SecchatClient::joinRoom(const std::string &roomName)
     return true;
 }
 
-void SecchatClient::sendMessage(const std::string &roomName, const std::string &message)
+bool SecchatClient::sendMessage(const std::string &roomName, const std::string &message)
 {
     printf("[client] sending: %s\n", message.c_str());
 
@@ -108,7 +120,8 @@ void SecchatClient::sendMessage(const std::string &roomName, const std::string &
     assert(buffer);
 
     const bool sendOk = mTransport.sendBlocking(buffer.get(), frame.getSize());
-    assert(sendOk == true);
+
+    return sendOk;
 }
 
 void SecchatClient::handlePacket( //

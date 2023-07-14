@@ -1,7 +1,9 @@
 #include "SecchatClient.hpp"
 
+#include <chrono>
 #include <cstdio>
 #include <iostream>
+#include <thread>
 
 int main(int argc, char **argv)
 {
@@ -36,15 +38,17 @@ int main(int argc, char **argv)
     printf("[client] now chatting in %s\n", room.c_str());
     while (true)
     {
-        // chatting...
-
         printf("[client][%s] > ", room.c_str());
         fflush(stdout);
 
         std::string message;
         std::getline(std::cin, message);
 
-        client.sendMessage(room, message);
+        const bool sendOk = client.sendMessage(room, message);
+        if (!sendOk)
+        {
+            printf("[client] sending %s failed...\n", message.c_str());
+        }
     }
 
     client.disconnectFromServer();

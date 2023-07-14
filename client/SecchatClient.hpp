@@ -16,7 +16,7 @@ public:
 
     void startChat(const std::string &userName);
     bool joinRoom(const std::string &roomName);
-    void sendMessage(const std::string &roomName, const std::string &message);
+    bool sendMessage(const std::string &roomName, const std::string &message);
 
 private:
     Crypto mCrypto;

@@ -223,7 +223,10 @@ void DataTransport::acceptHandler()
                     mSessions.push_back(std::move(session));
                 }
 
-                mOnConnectHandler();
+                if (mOnConnectHandler)
+                {
+                    mOnConnectHandler();
+                }
             }
         }
 
@@ -253,7 +256,10 @@ void DataTransport::invalidatedSessionsCollect()
 
                     // Calling disconnect handler here can be pretty late, maybe
                     // should be called during invalidate() on session?
-                    mOnDisconnectHandler(session);
+                    if (mOnDisconnectHandler)
+                    {
+                        mOnDisconnectHandler(session);
+                    }
 
                     return true; // should be removed
                 }
