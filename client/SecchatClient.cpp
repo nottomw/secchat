@@ -25,7 +25,7 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
         [](std::weak_ptr<Session> /*sess*/) {
             // For client there should be only a single session (to server),
             // this means we got disconnected and have to handle this...
-            printf("[client] disconnected from server...\n");
+            printf("[client] disconnected from server, closing client...\n");
             fflush(stdout);
 
             exit(0);
