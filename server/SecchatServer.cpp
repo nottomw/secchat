@@ -10,7 +10,7 @@ SecchatServer::SecchatServer()
 {
     if (!mCrypto.init())
     {
-        printf("Crypto init failed\n");
+        utils::log("Crypto init failed\n");
     }
 }
 
@@ -20,7 +20,7 @@ void SecchatServer::start(const uint16_t serverPort)
 
     mTransport.onServerConnect( //
         [&] {
-            printf("[server] accepting new connection...\n");
+            utils::log("[server] accepting new connection...\n");
             fflush(stdout);
         });
 
@@ -47,9 +47,9 @@ void SecchatServer::start(const uint16_t serverPort)
                             auto userSessionPtr = user.mSession.lock();
                             if (*userSessionPtr == *sessPtr)
                             {
-                                printf("[server] removing user %s from room %s\n", //
-                                       user.mUserName.c_str(),
-                                       roomIt.roomName.c_str());
+                                utils::log("[server] removing user %s from room %s\n", //
+                                           user.mUserName.c_str(),
+                                           roomIt.roomName.c_str());
 
                                 return true; // remove
                             }
@@ -70,7 +70,7 @@ void SecchatServer::start(const uint16_t serverPort)
                                        auto userSessionPtr = user.mSession.lock();
                                        if (*userSessionPtr == *sessPtr)
                                        {
-                                           printf("[server] removing user %s\n", user.mUserName.c_str());
+                                           utils::log("[server] removing user %s\n", user.mUserName.c_str());
                                            return true; // remove
                                        }
 
@@ -81,7 +81,7 @@ void SecchatServer::start(const uint16_t serverPort)
                 userCount = mUsers.size();
             }
 
-            printf("[server] currently %d users active\n", userCount);
+            utils::log("[server] currently %d users active\n", userCount);
         });
 
     mChatReader = std::thread{[&]() {
@@ -148,7 +148,7 @@ void SecchatServer::handlePacket( //
                 break;
 
             default:
-                printf("[server] incorrect frame, NOT HANDLED: ");
+                utils::log("[server] incorrect frame, NOT HANDLED: ");
                 utils::printCharactersHex(dataOffset, framesIt.getSize());
                 break;
         }
@@ -176,7 +176,7 @@ void SecchatServer::handleNewUser( //
         User *const user = *existingUser;
         user->mSession = session;
 
-        printf("[server] user %s already exists, DROP (but update the session)\n", userName.c_str());
+        utils::log("[server] user %s already exists, DROP (but update the session)\n", userName.c_str());
         return;
     }
 
@@ -184,7 +184,7 @@ void SecchatServer::handleNewUser( //
     user.mUserName = userName;
     user.mSession = session;
 
-    printf("[server] new user created: %s\n", user.mUserName.c_str());
+    utils::log("[server] new user created: %s\n", user.mUserName.c_str());
 
     uint32_t usersCount = 0U;
 
@@ -194,7 +194,7 @@ void SecchatServer::handleNewUser( //
         usersCount = mUsers.size();
     }
 
-    printf("[server] currently %d users active\n", usersCount);
+    utils::log("[server] currently %d users active\n", usersCount);
 
     std::string destination;
     destination.assign(frame.getHeader().source.get(), frame.getHeader().sourceSize);
@@ -239,15 +239,15 @@ void SecchatServer::handleJoinChatRoom( //
     auto userOk = verifyUserExists(userName);
     if (!userOk)
     {
-        printf("[server] user %s requested to join room %s, but user not registered yet, DROP\n", //
-               userName.c_str(),
-               chatRoomName.c_str());
+        utils::log("[server] user %s requested to join room %s, but user not registered yet, DROP\n", //
+                   userName.c_str(),
+                   chatRoomName.c_str());
         return;
     }
 
-    printf("[server] chatroom join requested from user %s, room name: %s\n", //
-           userName.c_str(),
-           chatRoomName.c_str());
+    utils::log("[server] chatroom join requested from user %s, room name: %s\n", //
+               userName.c_str(),
+               chatRoomName.c_str());
 
     const User *const user = *userOk; // dereference std::optional
     const bool joined = joinUserToRoom(*user, chatRoomName);
@@ -289,10 +289,10 @@ void SecchatServer::handleMessageToChatRoom( //
     roomName.assign(header.destination.get(), header.destinationSize);
     message.assign((char *)payload.payload.get(), payload.size);
 
-    printf("[server] RX MSG: [%s] <%s> %s\n", //
-           roomName.c_str(),
-           userName.c_str(),
-           message.c_str());
+    utils::log("[server] RX MSG: [%s] <%s> %s\n", //
+               roomName.c_str(),
+               userName.c_str(),
+               message.c_str());
     fflush(stdout);
 
     // TODO: mRooms must be a map...
@@ -357,13 +357,13 @@ bool SecchatServer::joinUserToRoom( //
 
         if (joinedUser)
         {
-            printf("[server] room already exists - user already joined, DROP\n");
+            utils::log("[server] room already exists - user already joined, DROP\n");
             return true;
         }
         else
         {
             room->get().mJoinedUsers.push_back(user.id);
-            printf("[server] room already exists - user joined\n");
+            utils::log("[server] room already exists - user joined\n");
 
             return true;
         }
@@ -380,7 +380,7 @@ bool SecchatServer::joinUserToRoom( //
             mRooms.push_back(std::move(newRoom));
         }
 
-        printf("[server] new room created, user joined\n");
+        utils::log("[server] new room created, user joined\n");
 
         return true;
     }

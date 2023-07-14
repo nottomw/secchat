@@ -11,7 +11,9 @@ target_include_directories(data_transport
 )
 
 target_link_libraries(data_transport
-   CONAN_PKG::asio
+    PUBLIC
+        CONAN_PKG::asio
+        secchat::utils
 )
 
 add_library(secchat::data_transport ALIAS data_transport)

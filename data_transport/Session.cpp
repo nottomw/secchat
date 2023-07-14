@@ -1,5 +1,7 @@
 #include "Session.hpp"
 
+#include "Utils.hpp"
+
 uint32_t Session::mGlobalSessionCounter = 0U;
 
 Session::Session(asio::ip::tcp::socket &&s)
@@ -42,7 +44,7 @@ void Session::start()
                                 }
                                 else
                                 {
-                                    printf("[session] READ ERROR: %s, %d\n", ec.message().c_str(), ec.value());
+                                    utils::log("[session] READ ERROR: %s, %d\n", ec.message().c_str(), ec.value());
                                 }
                             } //
     );
@@ -55,7 +57,7 @@ asio::ip::tcp::socket &Session::getSocket()
 
 void Session::invalidate()
 {
-    printf("[session] INVALIDATED: %s\n", mSocket.remote_endpoint().address().to_string().c_str());
+    utils::log("[session] INVALIDATED: %s\n", mSocket.remote_endpoint().address().to_string().c_str());
     mValid = false; // scheduled for disposal
 }
 

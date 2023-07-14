@@ -19,3 +19,8 @@ conan_cmake_run(REQUIRES libsodium/1.0.18
 conan_cmake_run(REQUIRES asio/1.28.0
                 BUILD missing
                 BASIC_SETUP CMAKE_TARGETS)
+
+# TUI
+conan_cmake_run(REQUIRES ncurses/6.4
+                BUILD missing
+                BASIC_SETUP CMAKE_TARGETS)

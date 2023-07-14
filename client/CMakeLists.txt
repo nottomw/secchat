@@ -11,4 +11,6 @@ target_link_libraries(SecchatClient
         secchat::crypto
         secchat::data_transport
         secchat::proto
+
+        CONAN_PKG::ncurses
 )

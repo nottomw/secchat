@@ -13,7 +13,7 @@ SecchatClient::SecchatClient()
 {
     if (!mCrypto.init())
     {
-        printf("Crypto init failed\n");
+        utils::log("Crypto init failed\n");
     }
 }
 
@@ -25,7 +25,7 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
         [](std::weak_ptr<Session> /*sess*/) {
             // For client there should be only a single session (to server),
             // this means we got disconnected and have to handle this...
-            printf("[client] disconnected from server, closing client...\n");
+            utils::log("[client] disconnected from server, closing client...\n");
             fflush(stdout);
 
             exit(0);
@@ -78,7 +78,7 @@ void SecchatClient::startChat(const std::string &userName)
 
 bool SecchatClient::joinRoom(const std::string &roomName)
 {
-    printf("[client] joining room %s\n", roomName.c_str());
+    utils::log("[client] joining room %s\n", roomName.c_str());
 
     serverJoinRoom(roomName);
 
@@ -100,7 +100,7 @@ bool SecchatClient::joinRoom(const std::string &roomName)
 
 bool SecchatClient::sendMessage(const std::string &roomName, const std::string &message)
 {
-    printf("[client] sending: %s\n", message.c_str());
+    utils::log("[client] sending: %s\n", message.c_str());
 
     Proto::Frame frame{// ugly casts...
                        (uint32_t)mMyUserName.size(),
@@ -136,7 +136,7 @@ void SecchatClient::handlePacket( //
         switch (payload.type)
         {
             case Proto::PayloadType::kNewUserIdAssigned:
-                printf("[client] user ID assigned by server: ");
+                utils::log("[client] user ID assigned by server: ");
                 utils::printCharacters(payload.payload.get(), payload.size);
                 break;
 
@@ -149,7 +149,7 @@ void SecchatClient::handlePacket( //
                 break;
 
             default:
-                printf("[server] incorrect frame, NOT HANDLED: ");
+                utils::log("[server] incorrect frame, NOT HANDLED: ");
                 utils::printCharactersHex(data, dataLen);
                 break;
         }
@@ -232,9 +232,9 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
     message.assign((char *)payload.payload.get(), payload.size);
 
     // Since no proper UI is implemented, for now just display the message...
-    printf("[%s] <%s> %s\n", //
-           roomName.c_str(),
-           userName.c_str(),
-           message.c_str());
+    utils::log("[%s] <%s> %s\n", //
+               roomName.c_str(),
+               userName.c_str(),
+               message.c_str());
     fflush(stdout);
 }

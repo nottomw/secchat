@@ -1,10 +1,11 @@
 #include "SecchatServer.hpp"
+#include "Utils.hpp"
 
 #include <cstdio>
 
 int main()
 {
-    printf("Hello world from server...\n");
+    utils::log("Hello world from server...\n");
 
     SecchatServer server;
     server.start(12345);

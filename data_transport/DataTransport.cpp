@@ -1,5 +1,7 @@
 #include "DataTransport.hpp"
 
+#include "Utils.hpp"
+
 #include <asio/ts/buffer.hpp>
 #include <chrono>
 #include <memory>
@@ -98,10 +100,10 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
         }
         else if (err)
         {
-            printf("[transport] WRITE ERROR: %s, %d to session: %s\n", //
-                   err.message().c_str(),
-                   err.value(),
-                   sock.remote_endpoint().address().to_string().c_str());
+            utils::log("[transport] WRITE ERROR: %s, %d to session: %s\n", //
+                       err.message().c_str(),
+                       err.value(),
+                       sock.remote_endpoint().address().to_string().c_str());
         }
 
         assert(wrote == bufferLen);
@@ -131,10 +133,10 @@ bool DataTransport::sendBlocking( //
     }
     else if (err)
     {
-        printf("[transport] WRITE ERROR: %s, %d to session: %s\n", //
-               err.message().c_str(),
-               err.value(),
-               sock.remote_endpoint().address().to_string().c_str());
+        utils::log("[transport] WRITE ERROR: %s, %d to session: %s\n", //
+                   err.message().c_str(),
+                   err.value(),
+                   sock.remote_endpoint().address().to_string().c_str());
     }
 
     assert(wrote == bufferLen);
@@ -212,7 +214,7 @@ void DataTransport::acceptHandler()
         if (!ec)
         {
             auto remoteEp = socket.remote_endpoint();
-            printf("[server] accepted connection from: %s\n", remoteEp.address().to_string().c_str());
+            utils::log("[server] accepted connection from: %s\n", remoteEp.address().to_string().c_str());
 
             {
                 auto session = std::make_shared<Session>(std::move(socket));
@@ -236,7 +238,7 @@ void DataTransport::acceptHandler()
 
 void DataTransport::invalidatedSessionsCollect()
 {
-    printf("[session collector] started\n");
+    utils::log("[session collector] started\n");
 
     // From time to time remove all sessions that were invalidated
     while (mInvalidatedSessionCollectorShouldRun)
@@ -249,8 +251,8 @@ void DataTransport::invalidatedSessionsCollect()
 
                 if (!sessionValid)
                 {
-                    printf("[session collector] removing session: %s\n",
-                           session->getSocket().remote_endpoint().address().to_string().c_str());
+                    utils::log("[session collector] removing session: %s\n",
+                               session->getSocket().remote_endpoint().address().to_string().c_str());
                     fflush(stdout);
                     removedSessions += 1U;
 
@@ -279,7 +281,7 @@ void DataTransport::invalidatedSessionsCollect()
 
         if (removedSessions > 0)
         {
-            printf("[session collector] removed %d invalidated sessions\n", removedSessions);
+            utils::log("[session collector] removed %d invalidated sessions\n", removedSessions);
         }
 
         std::this_thread::sleep_for(std::chrono::seconds(5));
