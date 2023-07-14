@@ -15,6 +15,8 @@ void printCharactersHex( //
     const uint32_t bufferSize,
     const char lastChar = '\n');
 
+// TODO: define for log so format string is literal
+
 template <typename... Ts>
 void log(const char *const fmt, Ts... params)
 {
