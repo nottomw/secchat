@@ -25,3 +25,20 @@ void utils::printCharactersHex(const uint8_t *const buffer, const uint32_t buffe
 
     fflush(stdout);
 }
+
+std::string utils::formatChatMessage( //
+    const std::string &roomName,
+    const std::string &userName,
+    const std::string &message)
+{
+    std::string retStr;
+    retStr += "[";
+    retStr += roomName;
+    retStr += "]";
+    retStr += "<";
+    retStr += userName;
+    retStr += "> ";
+    retStr += message;
+
+    return retStr;
+}

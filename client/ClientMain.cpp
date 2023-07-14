@@ -97,10 +97,15 @@ static void runChatTUI( //
     int &chatHeight,
     int &chatWidth,
     SecchatClient &client,
-    const std::string &joinedRoom)
+    const std::string &joinedRoom,
+    const std::string &userName)
 {
+    const std::string inputFieldPrefix = utils::formatChatMessage(joinedRoom, userName);
+    const int inputFieldPrefixSize = inputFieldPrefix.size();
+
     std::string inputText;
-    int cursorPositionX = 1;
+    const int cursorPositionXDefault = 1 + inputFieldPrefixSize;
+    int cursorPositionX = cursorPositionXDefault;
 
     bool tuiShouldRun = true;
     while (tuiShouldRun)
@@ -115,6 +120,12 @@ static void runChatTUI( //
         }
 
         drawChatWindow(chatWin, gFormattedMessagesToTUI, chatHeight, chatWidth);
+
+        mvwprintw(inputWin, //
+                  1,
+                  1,
+                  "%s",
+                  inputFieldPrefix.c_str());
 
         // Move the cursor to the input window
         wmove(inputWin, 1, cursorPositionX);
@@ -140,9 +151,9 @@ static void runChatTUI( //
                         continue;
                     }
 
-                    // Add the message to the chat
-                    std::string formattedMessage{"<my_user_name> "};
-                    formattedMessage += inputText;
+                    // add the message to the chat
+                    const std::string formattedMessage = //
+                        utils::formatChatMessage(joinedRoom, userName, inputText);
                     gFormattedMessagesToTUI.push_back(formattedMessage);
 
                     const bool sendOk = client.sendMessage(joinedRoom, inputText);
@@ -156,10 +167,10 @@ static void runChatTUI( //
                         gFormattedMessagesToTUI.push_back(ss.str());
                     }
 
-                    // move cursor back
-                    cursorPositionX = 1;
+                    // move cursor back to default
+                    cursorPositionX = cursorPositionXDefault;
 
-                    // Clear the input window and input text
+                    // clear the input window and input text
                     werase(inputWin);
                     box(inputWin, 0, 0);
                     wrefresh(inputWin);
@@ -170,14 +181,15 @@ static void runChatTUI( //
             case KEY_BACKSPACE: // fallthrough
             case 127:
                 {
-                    // Handle backspace key
                     if (!inputText.empty())
                     {
-                        // Remove the last character from the input text
+                        // remove the last character from the input text
                         inputText.pop_back();
 
-                        // Move the cursor back and overwrite the character with a space
-                        cursorPositionX = (cursorPositionX > 1) ? (cursorPositionX - 1) : 1;
+                        // move the cursor back and overwrite the character with a space
+                        cursorPositionX = (cursorPositionX > cursorPositionXDefault) //
+                                              ? (cursorPositionX - 1)
+                                              : cursorPositionXDefault;
                         int curX, curY;
                         getyx(inputWin, curY, curX);
                         if (curX > 1)
@@ -193,7 +205,7 @@ static void runChatTUI( //
             case KEY_LEFT:
                 {
                     // Move the cursor to the left
-                    if (cursorPositionX > 1)
+                    if (cursorPositionX > cursorPositionXDefault)
                     {
                         cursorPositionX--;
                         wmove(inputWin, 1, cursorPositionX);
@@ -205,7 +217,8 @@ static void runChatTUI( //
             case KEY_RIGHT:
                 {
                     // Move the cursor to the right
-                    if (cursorPositionX < chatWidth - 1 && cursorPositionX <= (int)inputText.length())
+                    if ((cursorPositionX < (chatWidth - 1)) && //
+                        (cursorPositionX <= ((int)inputText.length() + cursorPositionXDefault - 1)))
                     {
                         cursorPositionX++;
                         wmove(inputWin, 1, cursorPositionX);
@@ -218,13 +231,19 @@ static void runChatTUI( //
                 // Insert the character at the cursor position within the input text
                 if (cursorPositionX <= chatWidth - 1)
                 {
-                    inputText.insert(cursorPositionX - 1, 1, static_cast<char>(ch));
+                    const int textPosition = cursorPositionX - cursorPositionXDefault + 1;
+                    inputText.insert(textPosition - 1, 1, static_cast<char>(ch));
                     cursorPositionX++;
 
                     // Clear and redraw the input window with the updated input text
                     werase(inputWin);
                     box(inputWin, 0, 0);
-                    mvwprintw(inputWin, 1, 1, "%s", inputText.c_str());
+                    mvwprintw(inputWin, //
+                              1,
+                              1,
+                              "%s%s",
+                              inputFieldPrefix.c_str(),
+                              inputText.c_str());
                     wrefresh(inputWin);
                 }
 
@@ -279,7 +298,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    runChatTUI(chatWin, inputWin, chatHeight, chatWidth, client, room);
+    runChatTUI(chatWin, inputWin, chatHeight, chatWidth, client, room, userName);
 
     utils::log("[client] exiting...");
 

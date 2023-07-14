@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <string>
 
 namespace utils
 {
@@ -25,5 +26,12 @@ void log(const char *const fmt, Ts... params)
 #endif
     // TODO: log to file
 }
+
+// For now placed here due to lack of better place, should
+// be moved somewhere else probably...
+std::string formatChatMessage( //
+    const std::string &roomName,
+    const std::string &userName,
+    const std::string &message = "");
 
 } // namespace utils

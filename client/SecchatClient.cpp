@@ -232,14 +232,8 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
     roomName.assign(header.destination.get(), header.destinationSize);
     message.assign((char *)payload.payload.get(), payload.size);
 
-    std::string formattedMessage;
-    formattedMessage += "[";
-    formattedMessage += roomName;
-    formattedMessage += "]";
-    formattedMessage += "<";
-    formattedMessage += userName;
-    formattedMessage += "> ";
-    formattedMessage += message;
+    const std::string formattedMessage = //
+        utils::formatChatMessage(roomName, userName, message);
 
     mMessageUIScrollback.push_back(formattedMessage);
 }
