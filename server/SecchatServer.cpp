@@ -134,7 +134,7 @@ void SecchatServer::handleNewUser( //
     if (existingUser)
     {
         // TODO: what if it's same user but new session?
-        // for now just overwrite the session
+        // Assuming the user identity is validated for now and just overwriting the session.
         User *const user = *existingUser;
         user->mSession = session;
 
