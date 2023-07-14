@@ -6,8 +6,6 @@
 #include <thread>
 #include <utility>
 
-// TODO: graceful connection drop
-
 DataTransport::DataTransport()
     : mCurrentMode{Mode::kNone}
     , mServerRunning{true}
@@ -16,6 +14,8 @@ DataTransport::DataTransport()
     , mResolver{}
     , mSessionsMutex{}
     , mSessions{}
+    , mInvalidatedSessionCollectorShouldRun{true}
+    , mInvalidatedSessionsCollectorThread{&DataTransport::invalidatedSessionsCollect, this}
 {
 }
 
@@ -26,6 +26,12 @@ DataTransport::~DataTransport()
     if (mIoContextThread.joinable())
     {
         mIoContextThread.join();
+    }
+
+    mInvalidatedSessionCollectorShouldRun = false;
+    if (mInvalidatedSessionsCollectorThread.joinable())
+    {
+        mInvalidatedSessionsCollectorThread.join();
     }
 }
 
@@ -75,10 +81,24 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
 
     for (auto &it : mSessions)
     {
-        auto &sock = it->getSocket();
+        asio::error_code err;
 
+        auto &sock = it->getSocket();
         auto buf = asio::buffer(buffer, bufferLen);
-        size_t wrote = asio::write(sock, buf);
+        size_t wrote = asio::write(sock, buf, err);
+
+        if (err == asio::error::eof)
+        {
+            it->invalidate();
+        }
+        else if (err)
+        {
+            printf("[transport] WRITE ERROR: %s, %d to session: %s\n", //
+                   err.message().c_str(),
+                   err.value(),
+                   sock.remote_endpoint().address().to_string().c_str());
+        }
+
         assert(wrote == bufferLen);
     }
 
@@ -94,10 +114,24 @@ bool DataTransport::sendBlocking( //
     {
         return false;
     }
+    asio::error_code err;
 
     auto &sock = session->getSocket();
     auto buf = asio::buffer(buffer, bufferLen);
-    size_t wrote = asio::write(sock, buf);
+    size_t wrote = asio::write(sock, buf, err);
+
+    if (err == asio::error::eof)
+    {
+        session->invalidate();
+    }
+    else if (err)
+    {
+        printf("[transport] WRITE ERROR: %s, %d to session: %s\n", //
+               err.message().c_str(),
+               err.value(),
+               sock.remote_endpoint().address().to_string().c_str());
+    }
+
     assert(wrote == bufferLen);
 
     return true;
@@ -190,4 +224,49 @@ void DataTransport::acceptHandler()
 
         acceptHandler(); // continue accepting
     });
+}
+
+void DataTransport::invalidatedSessionsCollect()
+{
+    printf("[session collector] started\n");
+
+    // From time to time remove all sessions that were invalidated
+    while (mInvalidatedSessionCollectorShouldRun)
+    {
+        uint32_t removedSessions = 0U;
+
+        auto removeCondition =                                     //
+            [&removedSessions](std::shared_ptr<Session> session) { //
+                const bool sessionValid = session->isValid();
+
+                if (!sessionValid)
+                {
+                    printf("[session collector] removing session: %s\n",
+                           session->getSocket().remote_endpoint().address().to_string().c_str());
+                    fflush(stdout);
+                    removedSessions += 1U;
+
+                    return true; // should be removed
+                }
+
+                return false;
+            };
+
+        {
+            std::lock_guard<std::mutex> lk{mSessionsMutex};
+            mSessions.erase(    //
+                std::remove_if( //
+                    mSessions.begin(),
+                    mSessions.end(),
+                    removeCondition),
+                mSessions.end());
+        }
+
+        if (removedSessions > 0)
+        {
+            printf("[session collector] removed %d invalidated sessions\n", removedSessions);
+        }
+
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+    }
 }

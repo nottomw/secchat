@@ -204,6 +204,8 @@ void SecchatServer::joinUserToRoom( //
 
         mRooms.push_back(std::move(newRoom));
 
+        // TODO: should reply with kChatRoomJoined
+
         printf("[server] new room created, user joined\n");
     }
 }

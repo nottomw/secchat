@@ -15,6 +15,9 @@ public:
 
     asio::ip::tcp::socket &getSocket();
 
+    void invalidate();
+    bool isValid() const;
+
 private:
     static constexpr uint32_t kMaxBufSize = 1024;
     uint8_t mRawBuffer[kMaxBufSize];
@@ -30,6 +33,8 @@ private:
 
     std::mutex mReceivedDataQueueMutex;
     std::deque<ReceivedData> mReceivedDataQueue;
+
+    bool mValid;
 
     bool getData( //
         uint8_t *const buffer,

@@ -52,6 +52,10 @@ private:
 
     FnOnConnectHandler mOnConnectHandler;
 
+    bool mInvalidatedSessionCollectorShouldRun;
+    std::thread mInvalidatedSessionsCollectorThread;
+
     void setTransportMode(const Mode newMode);
     void acceptHandler();
+    void invalidatedSessionsCollect();
 };
