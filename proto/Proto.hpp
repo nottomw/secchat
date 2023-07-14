@@ -54,7 +54,7 @@ public:
     {
     public:
         PayloadType type;
-        uint32_t payloadSize;
+        uint32_t size;
         std::unique_ptr<uint8_t[]> payload;
 
     private:
@@ -74,8 +74,7 @@ public:
         Frame(Frame &&) = default;
         Frame &operator=(const Frame &) = default;
         Frame &operator=(Frame &&) = default;
-
-        ~Frame();
+        ~Frame() = default;
 
         uint32_t getSize() const;
         Header &getHeader();

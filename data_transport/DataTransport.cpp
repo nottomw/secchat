@@ -71,7 +71,7 @@ void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
 
 bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen)
 {
-    // sending to all session sockets here, naive approach
+    // sending to all session sockets here
 
     for (auto &it : mSessions)
     {
@@ -85,10 +85,28 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
     return true;
 }
 
-bool DataTransport::receiveBlocking(uint8_t *const buffer,
-                                    const uint32_t bufferSizeMax,
-                                    uint32_t *const bufferReceivedLen,
-                                    const uint64_t timeoutMs)
+bool DataTransport::sendBlocking( //
+    const uint8_t *const buffer,
+    const uint32_t bufferLen,
+    std::shared_ptr<Session> session)
+{
+    if (!session)
+    {
+        return false;
+    }
+
+    auto &sock = session->getSocket();
+    auto buf = asio::buffer(buffer, bufferLen);
+    size_t wrote = asio::write(sock, buf);
+    assert(wrote == bufferLen);
+
+    return true;
+}
+
+std::weak_ptr<Session> DataTransport::receiveBlocking(uint8_t *const buffer,
+                                                      const uint32_t bufferSizeMax,
+                                                      uint32_t *const bufferReceivedLen,
+                                                      const uint64_t timeoutMs)
 {
     *bufferReceivedLen = 0U;
 
@@ -105,7 +123,7 @@ bool DataTransport::receiveBlocking(uint8_t *const buffer,
         const bool timeoutHappened = (totalWaitTime > timeoutMs);
         if (timeoutArmed && timeoutHappened)
         {
-            return false;
+            return std::weak_ptr<Session>{};
         }
 
         {
@@ -115,7 +133,7 @@ bool DataTransport::receiveBlocking(uint8_t *const buffer,
                 const bool recvOk = it->getData(buffer, bufferSizeMax, bufferReceivedLen);
                 if (recvOk)
                 {
-                    return true;
+                    return it;
                 }
             }
         }
@@ -124,7 +142,7 @@ bool DataTransport::receiveBlocking(uint8_t *const buffer,
         totalWaitTime += kLoopWaitTimeMs;
     }
 
-    return false;
+    return std::weak_ptr<Session>{};
 }
 
 void DataTransport::setTransportMode(const DataTransport::Mode newMode)

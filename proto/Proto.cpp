@@ -35,7 +35,7 @@ void Proto::populatePayload( //
     const uint32_t payloadSize)
 {
     frame.payload.type = type;
-    frame.payload.payloadSize = payloadSize;
+    frame.payload.size = payloadSize;
 
     memcpy(frame.payload.payload.get(), payload, payloadSize);
 }
@@ -69,10 +69,10 @@ std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
     memcpy(buf, &frame.payload.type, sizeof(Payload::type));
     buf += sizeof(Payload::type);
 
-    memcpy(buf, &frame.payload.payloadSize, sizeof(Payload::payloadSize));
-    buf += sizeof(Payload::payloadSize);
+    memcpy(buf, &frame.payload.size, sizeof(Payload::size));
+    buf += sizeof(Payload::size);
 
-    memcpy(buf, frame.payload.payload.get(), frame.payload.payloadSize);
+    memcpy(buf, frame.payload.payload.get(), frame.payload.size);
 
     return retBuf;
 }
@@ -118,12 +118,12 @@ std::vector<Proto::Frame> Proto::deserialize( //
         memcpy(&frame.payload.type, buf, sizeof(Payload::type));
         buf += sizeof(Payload::type);
 
-        memcpy(&frame.payload.payloadSize, buf, sizeof(Payload::payloadSize));
-        buf += sizeof(Payload::payloadSize);
+        memcpy(&frame.payload.size, buf, sizeof(Payload::size));
+        buf += sizeof(Payload::size);
 
-        frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[frame.payload.payloadSize]);
-        memcpy(frame.payload.payload.get(), buf, frame.payload.payloadSize);
-        buf += frame.payload.payloadSize;
+        frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[frame.payload.size]);
+        memcpy(frame.payload.payload.get(), buf, frame.payload.size);
+        buf += frame.payload.size;
 
         bytesLeftToParse -= frame.getSize();
         allFrames.push_back(std::move(frame));
@@ -142,11 +142,6 @@ Proto::Frame::Frame( //
     payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[payloadSize]);
 }
 
-Proto::Frame::~Frame()
-{
-    // TODO: delete[] all the reserved bytes (if any left)
-}
-
 uint32_t Proto::Frame::getSize() const
 {
     constexpr uint32_t kHeaderSizeStatic = //
@@ -157,7 +152,7 @@ uint32_t Proto::Frame::getSize() const
 
     constexpr uint32_t kPayloadSizeStatic = //
         sizeof(Payload::type) +             //
-        sizeof(Payload::payloadSize);
+        sizeof(Payload::size);
 
     const uint32_t headerSize = //
         kHeaderSizeStatic +     //
@@ -166,7 +161,7 @@ uint32_t Proto::Frame::getSize() const
 
     const uint32_t payloadSize = //
         kPayloadSizeStatic +     //
-        payload.payloadSize;
+        payload.size;
 
     const uint32_t frameSize = headerSize + payloadSize;
     return frameSize;
@@ -189,7 +184,7 @@ Proto::Frame::Frame()
 
 Proto::Payload::Payload()
     : type{PayloadType::kNone}
-    , payloadSize{0U}
+    , size{0U}
 {
 }
 

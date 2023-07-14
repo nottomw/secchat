@@ -22,25 +22,19 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
 {
     mTransport.connect(ipAddr, port);
 
-    mChatReader = std::thread{//
-                              [&]() {
-                                  while (mReaderShouldRun)
-                                  {
-                                      uint8_t rawBuf[1024];
-                                      uint32_t recvdLen = 0;
-                                      const bool dataOk = mTransport.receiveBlocking(rawBuf, 1024, &recvdLen);
-
-                                      if (dataOk)
-                                      {
-                                          for (size_t i = 0; i < recvdLen; ++i)
-                                          {
-                                              printf("%c", rawBuf[i]);
-                                          }
-                                          printf("\n");
-                                          fflush(stdout);
-                                      }
-                                  }
-                              }};
+    mChatReader = std::thread{[&]() { //
+        while (mReaderShouldRun)
+        {
+            uint8_t rawBuf[1024];
+            uint32_t recvdLen = 0;
+            const auto session = mTransport.receiveBlocking(rawBuf, 1024, &recvdLen);
+            auto sessionShared = session.lock();
+            if (sessionShared)
+            {
+                handlePacket(rawBuf, recvdLen, sessionShared);
+            }
+        }
+    }};
 }
 
 void SecchatClient::disconnectFromServer()
@@ -73,6 +67,8 @@ void SecchatClient::startChat(const std::string &userName)
 
 void SecchatClient::joinRoom(const std::string &roomName)
 {
+    printf("[client] joining room %s\n", roomName.c_str());
+
     serverJoinRoom(roomName);
 
     // TODO: wait until join confirmed or denied
@@ -89,6 +85,29 @@ void SecchatClient::joinRoom(const std::string &roomName)
 
         printf("NOT SENDING: %s\n", dataToSend.c_str());
         //        mTransport.sendBlocking((uint8_t *)dataToSend.c_str(), dataToSend.size());
+    }
+}
+
+void SecchatClient::handlePacket( //
+    const uint8_t *const data,
+    const uint32_t dataLen,
+    std::shared_ptr<Session> /*session*/)
+{
+    auto receivedFrames = Proto::deserialize(data, dataLen);
+    for (auto &framesIt : receivedFrames)
+    {
+        Proto::Payload &payload = framesIt.getPayload();
+        switch (payload.type)
+        {
+            case Proto::PayloadType::kNewUserIdAssigned:
+                printf("[client] user ID assigned by server: ");
+                utils::printCharacters(payload.payload.get(), payload.size);
+                break;
+            default:
+                printf("[server] incorrect frame, NOT HANDLED: ");
+                utils::printCharactersHex(data, dataLen);
+                break;
+        }
     }
 }
 
@@ -133,10 +152,6 @@ void SecchatClient::serverJoinRoom(const std::string &roomName)
 
     std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
     assert(buffer);
-
-    printf("Sending room join request\n");
-    utils::printCharacters(buffer.get(), frame.getSize());
-    fflush(stdout);
 
     mTransport.sendBlocking(buffer.get(), frame.getSize());
 }

@@ -14,7 +14,6 @@ public:
     void start();
 
     asio::ip::tcp::socket &getSocket();
-    bool getData(uint8_t *const buffer, const uint32_t bufferSizeMAx, uint32_t *const bufferReceivedLen);
 
 private:
     static constexpr uint32_t kMaxBufSize = 1024;
@@ -31,4 +30,11 @@ private:
 
     std::mutex mReceivedDataQueueMutex;
     std::deque<ReceivedData> mReceivedDataQueue;
+
+    bool getData( //
+        uint8_t *const buffer,
+        const uint32_t bufferSizeMax,
+        uint32_t *const bufferReceivedLen);
+
+    friend class DataTransport;
 };

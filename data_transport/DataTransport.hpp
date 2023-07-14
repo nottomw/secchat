@@ -20,10 +20,12 @@ public:
     void connect(const std::string &ipAddr, const uint16_t port);
 
     bool sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen);
-    bool receiveBlocking(uint8_t *const buffer, //
-                         const uint32_t bufferSizeMax,
-                         uint32_t *const bufferReceivedLen,
-                         const uint64_t timeoutMs = 2000U);
+    bool sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen, std::shared_ptr<Session> session);
+
+    std::weak_ptr<Session> receiveBlocking(uint8_t *const buffer, //
+                                           const uint32_t bufferSizeMax,
+                                           uint32_t *const bufferReceivedLen,
+                                           const uint64_t timeoutMs = 2000U);
 
 private:
     enum class Mode

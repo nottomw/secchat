@@ -30,6 +30,11 @@ private:
     std::string mMyUserName;
     std::vector<std::string> mJoinedRooms;
 
+    void handlePacket( //
+        const uint8_t *const data,
+        const uint32_t dataLen,
+        std::shared_ptr<Session> session);
+
     void serverNewUserAnnounce();
     void serverJoinRoom(const std::string &roomName);
 };
