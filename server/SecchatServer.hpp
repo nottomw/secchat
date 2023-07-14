@@ -46,6 +46,8 @@ private:
         Room() = default;
         Room(Room &&other);
 
+        bool operator==(const std::string &str);
+
         std::string roomName;
         std::vector<UserId> mJoinedUsers;
 
@@ -68,6 +70,11 @@ private:
     void handleJoinChatRoom( //
         Proto::Frame &frame,
         std::shared_ptr<Session> session);
+
+    void handleMessageToChatRoom( //
+        Proto::Frame &frame,
+        std::shared_ptr<Session> session,
+        const uint8_t *const rawBuffer);
 
     bool joinUserToRoom(const User &user, const std::string &roomName);
 

@@ -124,9 +124,14 @@ void SecchatServer::handlePacket( //
     const uint32_t dataLen,
     std::shared_ptr<Session> session)
 {
+    // Track the offset of a specific frame in raw buffer so it can be easily
+    // forwarded to clients without another serialization.
+    const uint8_t *dataOffset = data;
+
     auto receivedFrames = Proto::deserialize(data, dataLen);
     for (auto &framesIt : receivedFrames)
     {
+
         Proto::Payload &payload = framesIt.getPayload();
         switch (payload.type)
         {
@@ -138,11 +143,17 @@ void SecchatServer::handlePacket( //
                 handleJoinChatRoom(framesIt, session);
                 break;
 
+            case Proto::PayloadType::k$$$MessageToRoom:
+                handleMessageToChatRoom(framesIt, session, dataOffset);
+                break;
+
             default:
                 printf("[server] incorrect frame, NOT HANDLED: ");
-                utils::printCharactersHex(data, dataLen);
+                utils::printCharactersHex(dataOffset, framesIt.getSize());
                 break;
         }
+
+        dataOffset += framesIt.getSize();
     }
 
     // handle sym key exchange -> forward user pub key to all users
@@ -262,6 +273,59 @@ void SecchatServer::handleJoinChatRoom( //
     }
 }
 
+void SecchatServer::handleMessageToChatRoom( //
+    Proto::Frame &frame,
+    std::shared_ptr<Session> session,
+    const uint8_t *const rawBuffer)
+{
+    const Proto::Header &header = frame.getHeader();
+    const Proto::Payload &payload = frame.getPayload();
+
+    std::string userName;
+    std::string roomName;
+    std::string message;
+
+    userName.assign(header.source.get(), header.sourceSize);
+    roomName.assign(header.destination.get(), header.destinationSize);
+    message.assign((char *)payload.payload.get(), payload.size);
+
+    printf("[server] RX MSG: [%s] <%s> %s\n", //
+           roomName.c_str(),
+           userName.c_str(),
+           message.c_str());
+    fflush(stdout);
+
+    // TODO: mRooms must be a map...
+    auto foundRoom = std::find(mRooms.begin(), mRooms.end(), roomName);
+
+    // TODO: properly handle incorrect room - something strange,
+    // probably should drop session
+    assert(foundRoom != mRooms.end());
+
+    {
+        // TODO: this should be readers-writes (or cleanup mutex hell...)
+        std::lock_guard<std::mutex> lk{foundRoom->mRoomMutex};
+
+        // send to all users in this chat room
+        for (const auto &userInRoomId : foundRoom->mJoinedUsers)
+        {
+            const User &user = findUserById(userInRoomId);
+            const auto userInRoomSession = user.mSession.lock();
+            assert(userInRoomSession); // should never be invalid ptr unless internal userlist is corrupted
+
+            if (*userInRoomSession == *session)
+            {
+                // If this is the session that we just got the message from,
+                // do not echo unnecessarily back.
+                continue;
+            }
+
+            const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
+            assert(sendOk);
+        }
+    }
+}
+
 bool SecchatServer::joinUserToRoom( //
     const SecchatServer::User &user,
     const std::string &roomName)
@@ -352,4 +416,9 @@ SecchatServer::Room::Room(SecchatServer::Room &&other)
     : roomName{std::move(other.roomName)}
     , mJoinedUsers{std::move(other.mJoinedUsers)}
 {
+}
+
+bool SecchatServer::Room::operator==(const std::string &str)
+{
+    return (str == roomName);
 }

@@ -88,9 +88,27 @@ bool SecchatClient::joinRoom(const std::string &roomName)
 
 void SecchatClient::sendMessage(const std::string &roomName, const std::string &message)
 {
-    printf("[client] sendMessage: NOT SENDING: %s\n", message.c_str());
-    // TODO: implement actual send message
-    // mTransport.sendBlocking();
+    printf("[client] sending: %s\n", message.c_str());
+
+    Proto::Frame frame{// ugly casts...
+                       (uint32_t)mMyUserName.size(),
+                       (uint32_t)roomName.size(),
+                       (uint32_t)message.size()};
+
+    Proto::populateHeader(frame, mMyUserName, roomName);
+
+    // TODO: this message should be encrypted with sym key
+
+    Proto::populatePayload(frame,
+                           Proto::PayloadType::k$$$MessageToRoom,
+                           (uint8_t *)message.c_str(), // ugly cast
+                           message.size());
+
+    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
+    assert(buffer);
+
+    const bool sendOk = mTransport.sendBlocking(buffer.get(), frame.getSize());
+    assert(sendOk == true);
 }
 
 void SecchatClient::handlePacket( //
@@ -108,9 +126,15 @@ void SecchatClient::handlePacket( //
                 printf("[client] user ID assigned by server: ");
                 utils::printCharacters(payload.payload.get(), payload.size);
                 break;
+
             case Proto::PayloadType::kChatRoomJoined:
                 handleChatRoomJoined(framesIt);
                 break;
+
+            case Proto::PayloadType::k$$$MessageToRoom:
+                handleMessageToRoom(framesIt);
+                break;
+
             default:
                 printf("[server] incorrect frame, NOT HANDLED: ");
                 utils::printCharactersHex(data, dataLen);
@@ -177,4 +201,25 @@ void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
     }
 
     mJoinedCondVar.notify_all();
+}
+
+void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
+{
+    const Proto::Header &header = frame.getHeader();
+    const Proto::Payload &payload = frame.getPayload();
+
+    std::string userName;
+    std::string roomName;
+    std::string message;
+
+    userName.assign(header.source.get(), header.sourceSize);
+    roomName.assign(header.destination.get(), header.destinationSize);
+    message.assign((char *)payload.payload.get(), payload.size);
+
+    // Since no proper UI is implemented, for now just display the message...
+    printf("[%s] <%s> %s\n", //
+           roomName.c_str(),
+           userName.c_str(),
+           message.c_str());
+    fflush(stdout);
 }

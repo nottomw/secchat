@@ -45,4 +45,5 @@ private:
     void serverNewUserAnnounce();
     void serverJoinRoom(const std::string &roomName);
     void handleChatRoomJoined(Proto::Frame &frame);
+    void handleMessageToRoom(Proto::Frame &frame);
 };
