@@ -152,11 +152,12 @@ int main()
     }
 
     std::vector<std::string> formattedMessages;
-    std::string inputText; // Stores the user's input
+    std::string inputText;
 
     int cursorPositionX = 1;
 
-    while (true)
+    bool tuiShouldRun = true;
+    while (tuiShouldRun)
     {
         drawChatWindow(chatWin, formattedMessages, chatHeight, chatWidth);
 
@@ -169,6 +170,14 @@ int main()
         {
             case '\n':
                 {
+                    // special command
+                    const std::string cmdQuit = "/quit";
+                    const std::string cmdQuitShort = "/q";
+                    if ((inputText == cmdQuit) || (inputText == cmdQuitShort))
+                    {
+                        tuiShouldRun = false;
+                    }
+
                     // Add the message to the chat
                     std::string formattedMessage{"<my_user_name> "};
                     formattedMessage += inputText;
