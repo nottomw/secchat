@@ -70,7 +70,7 @@ static void drawChatWindow( //
     WINDOW *chatWin,
     const std::vector<std::string> &formattedMessages,
     int chatHeight,
-    int chatWidth)
+    int /*chatWidth*/)
 {
     wclear(chatWin);
     box(chatWin, 0, 0);
@@ -159,6 +159,14 @@ int main()
     bool tuiShouldRun = true;
     while (tuiShouldRun)
     {
+        // Clear the scrollback if it's too big
+        constexpr int kMaxScrollbackLines = 100;
+        if (formattedMessages.size() > kMaxScrollbackLines)
+        {
+            const int toBeErased = (formattedMessages.size() - kMaxScrollbackLines);
+            formattedMessages.erase(formattedMessages.begin(), formattedMessages.begin() + toBeErased);
+        }
+
         drawChatWindow(chatWin, formattedMessages, chatHeight, chatWidth);
 
         // Move the cursor to the input window
@@ -194,7 +202,7 @@ int main()
                 }
                 break;
 
-            case KEY_BACKSPACE:
+            case KEY_BACKSPACE: // fallthrough
             case 127:
                 {
                     // Handle backspace key
@@ -259,7 +267,6 @@ int main()
         }
     }
 
-    // Clean up ncurses
     delwin(inputWin);
     delwin(chatWin);
     endwin();
