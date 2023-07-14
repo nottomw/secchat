@@ -212,6 +212,8 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
     std::string roomName;
     std::string message;
 
+    // TODO: the message should be decrypted with sym key
+
     userName.assign(header.source.get(), header.sourceSize);
     roomName.assign(header.destination.get(), header.destinationSize);
     message.assign((char *)payload.payload.get(), payload.size);
