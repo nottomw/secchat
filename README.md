@@ -1,17 +1,17 @@
-## Secchat
+# Secchat
 
 ![secchat ncurses](https://github.com/nottomw/secchat/actions/workflows/secchat-ncurses.yml/badge.svg)
 ![secchat terminal](https://github.com/nottomw/secchat/actions/workflows/secchat-terminal.yml/badge.svg)
 
-### Info
+## Info
 Fun with crypto and networking.
 
-Currently used:
-- net: Asio (not boost::asio)
-- crypto: libsodium
-- UI: ncurses ( ;) )
+Currently used libs:
+- net: `Asio` (not boost::asio)
+- crypto: `libsodium`
+- UI: `ncurses` ( ;) )
 
-### Build
+## Build
 ```
 $ mkdir build
 $ cd build
