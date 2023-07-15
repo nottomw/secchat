@@ -73,4 +73,9 @@ bool runChatUserInterface( //
     return true;
 }
 
+void print(const char *const fmt)
+{
+    utils::log(fmt);
+}
+
 } // namespace ui

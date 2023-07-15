@@ -26,9 +26,10 @@ int main(int argc, char **argv)
         room = argv[2];
     }
 
-    utils::log("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
-
     std::vector<std::string> formattedMessagesToUI;
+    ui::initialize(formattedMessagesToUI);
+
+    ui::print("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
 
     SecchatClient client{formattedMessagesToUI};
     client.connectToServer("127.0.0.1", 12345);
@@ -37,15 +38,14 @@ int main(int argc, char **argv)
     const bool joined = client.joinRoom(room);
     if (!joined)
     {
-        utils::log("[client] could not join room %s\n", room.c_str());
+        ui::print("[client] could not join room %s\n", room.c_str());
         return 0;
     }
 
-    utils::log("[client] now chatting in %s\n", room.c_str());
+    ui::print("[client] now chatting in %s\n", room.c_str());
 
     ui::runChatUserInterface( //
         client,
-        formattedMessagesToUI,
         room,
         userName);
 

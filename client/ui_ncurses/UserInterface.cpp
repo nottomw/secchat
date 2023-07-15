@@ -14,6 +14,8 @@ void handleCtrlC(int /*signal*/)
     exit(0);  // Terminate the program
 }
 
+std::vector<std::string> *gPrintInputFormattedMessages = nullptr;
+
 static void drawChatWindow( //
     WINDOW *chatWin,
     const std::vector<std::string> &formattedMessages,
@@ -36,7 +38,11 @@ static void drawChatWindow( //
     wrefresh(chatWin);
 }
 
-static bool initializeChatTUI(WINDOW *&chatWin, WINDOW *&inputWin, int &chatHeight, int &chatWidth)
+static bool initializeChatTUI( //
+    WINDOW *&chatWin,
+    WINDOW *&inputWin,
+    int &chatHeight,
+    int &chatWidth)
 {
     initscr();
     cbreak();
@@ -254,7 +260,6 @@ static void runChatTUI( //
 
 bool runChatUserInterface( //
     SecchatClient &client,
-    std::vector<std::string> &formattedMessagesToTUI,
     const std::string &joinedRoom,
     const std::string &userName)
 {
@@ -262,6 +267,8 @@ bool runChatUserInterface( //
     WINDOW *inputWin = nullptr;
     int chatHeight = 0;
     int chatWidth = 0;
+
+    assert(gPrintInputFormattedMessages != nullptr);
 
     const bool tuiStarted = //
         initializeChatTUI(chatWin, inputWin, chatHeight, chatWidth);
@@ -276,11 +283,16 @@ bool runChatUserInterface( //
         chatHeight,
         chatWidth,
         client,
-        formattedMessagesToTUI,
+        *gPrintInputFormattedMessages,
         joinedRoom,
         userName);
 
     return true;
+}
+
+void initialize(std::vector<std::string> &formattedMessagesToUI)
+{
+    gPrintInputFormattedMessages = &formattedMessagesToUI;
 }
 
 } // namespace ui
