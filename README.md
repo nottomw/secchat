@@ -1,6 +1,6 @@
 ## Secchat
 ### Info
-Fun with crypto and network.
+Fun with crypto and networking.
 
 Currently used:
 - net: Asio (not boost::asio)
