@@ -59,21 +59,6 @@ void SecchatClient::startChat(const std::string &userName)
 {
     mMyUserName = userName;
 
-    // If this is first user to join the room, he is considered the room owner:
-    // - owner generates asymetric group chat key
-
-    // When new user joins:
-    // - new user sends pub key to the server
-    // - randomly selected user (usr1) is requested to send room key to new user
-    // - usr1 encrypts group chat key with pub key
-    // - usr1 sends the encrypted group chat key to new user
-
-    // send "new user"
-    // receive my ID
-
-    // send "join chat room"
-    // receive success/failure
-
     serverNewUserAnnounce();
 }
 
