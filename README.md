@@ -14,8 +14,8 @@ src $ ninja
 ```
 
 ### Config
-To disable ncurses there is a possibility to build only with terminal,
-in main CMakeLists.txt change:
+There is a possibility to build only with terminal (printfs-like),
+to disable ncurses in main CMakeLists.txt change:
 
 ```
 secchat_mode_set(ncurses)
