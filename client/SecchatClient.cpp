@@ -29,7 +29,10 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
             // this means we got disconnected and have to handle this...
             ui::print("[client] disconnected from server, closing client...\n");
 
-            exit(0);
+            // TODO: HACK: pretend we just got ctrl-c'd, otherwise
+            // the curses ui is breaking terminal
+            ui::handleCtrlC(SIGINT);
+
             // TODO: the disconnect should probably trigger server connection retry,
             // now it will just print message and exit...
         });

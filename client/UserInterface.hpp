@@ -42,7 +42,7 @@ void print(const char *const fmt, Ts... args)
         gPrintInputFormattedMessages->push_back(str);
     }
 
-    // always log too
+    // always log too - should log to some file probably
     utils::log(fmt, args...);
 }
 
