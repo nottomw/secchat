@@ -5,8 +5,7 @@ project(secchat CXX C)
 # This actually impacts only client, so maybe should be moved there?
 include(${PROJECT_SOURCE_DIR}/cmake/SecchatModes.cmake)
 
-secchat_mode_set(ncurses)
-#secchat_mode_set(terminal)
+secchat_mode_verify()
 
 include(${PROJECT_SOURCE_DIR}/cmake/CompilerOptionsLinux.cmake)
 include(${PROJECT_SOURCE_DIR}/cmake/ExternalLibs.cmake)
