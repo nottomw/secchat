@@ -10,14 +10,20 @@
 namespace ui
 {
 
+std::vector<std::string> *gPrintInputFormattedMessages = nullptr;
+
 void handleCtrlC(int /*signal*/)
 {
     exit(0); // Terminate the program
 }
 
+void initialize(std::vector<std::string> &formattedMessagesToUI)
+{
+    gPrintInputFormattedMessages = &formattedMessagesToUI;
+}
+
 bool runChatUserInterface( //
     SecchatClient &client,
-    std::vector<std::string> &formattedMessagesToUI,
     const std::string &joinedRoom,
     const std::string &userName)
 {
@@ -31,12 +37,14 @@ bool runChatUserInterface( //
             // TODO: race cond for "formattedMessagesToUI"
             // needs to be fixed
 
-            for (const auto &msg : formattedMessagesToUI)
+            for (const auto &msg : *gPrintInputFormattedMessages)
             {
                 utils::log("%s\n", msg.c_str());
             }
 
-            formattedMessagesToUI.erase(formattedMessagesToUI.begin(), formattedMessagesToUI.end());
+            gPrintInputFormattedMessages->erase( //
+                gPrintInputFormattedMessages->begin(),
+                gPrintInputFormattedMessages->end());
 
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
@@ -73,9 +81,20 @@ bool runChatUserInterface( //
     return true;
 }
 
-void print(const char *const fmt)
+void printCharacters( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize,
+    const char lastChar)
 {
-    utils::log(fmt);
+    utils::printCharacters(buffer, bufferSize, lastChar);
+}
+
+void printCharactersHex( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize,
+    const char lastChar)
+{
+    utils::printCharactersHex(buffer, bufferSize, lastChar);
 }
 
 } // namespace ui
