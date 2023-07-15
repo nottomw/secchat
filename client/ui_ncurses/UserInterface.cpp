@@ -3,7 +3,9 @@
 #include "SecchatClient.hpp"
 #include "Utils.hpp"
 
+#include <iomanip>
 #include <ncurses.h>
+#include <sstream>
 
 namespace ui
 {
@@ -293,6 +295,48 @@ bool runChatUserInterface( //
 void initialize(std::vector<std::string> &formattedMessagesToUI)
 {
     gPrintInputFormattedMessages = &formattedMessagesToUI;
+}
+
+void printCharacters( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize,
+    const char lastChar)
+{
+    std::stringstream ss;
+
+    for (uint32_t i = 0; i < bufferSize; ++i)
+    {
+        const char charToPrint = isgraph(buffer[i]) ? buffer[i] : 'X';
+        ss << charToPrint;
+    }
+
+    if (lastChar != '\0')
+    {
+        ss << lastChar;
+    }
+
+    ui::print("%s", ss.str().c_str());
+}
+
+void printCharactersHex( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize,
+    const char lastChar)
+{
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
+    for (uint32_t i = 0; i < bufferSize; ++i)
+    {
+        ss << std::setw(2) << static_cast<uint32_t>(buffer[i]) << " ";
+    }
+
+    if (lastChar != '\0')
+    {
+        ss << lastChar;
+    }
+
+    ui::print("%s", ss.str().c_str());
 }
 
 } // namespace ui

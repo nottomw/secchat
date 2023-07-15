@@ -289,11 +289,9 @@ void SecchatServer::handleMessageToChatRoom( //
     roomName.assign(header.destination.get(), header.destinationSize);
     message.assign((char *)payload.payload.get(), payload.size);
 
-    utils::log("[server] RX MSG: [%s] <%s> %s\n", //
-               roomName.c_str(),
-               userName.c_str(),
-               message.c_str());
-    fflush(stdout);
+    const std::string chatMsgFormatted = utils::formatChatMessage(roomName, userName, message);
+
+    utils::log("[server] RX MSG: %s\n", chatMsgFormatted.c_str());
 
     // TODO: mRooms must be a map...
     auto foundRoom = std::find(mRooms.begin(), mRooms.end(), roomName);

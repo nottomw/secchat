@@ -11,6 +11,7 @@ void printCharacters( //
     const uint8_t *const buffer,
     const uint32_t bufferSize,
     const char lastChar = '\n');
+
 void printCharactersHex( //
     const uint8_t *const buffer,
     const uint32_t bufferSize,
@@ -23,6 +24,7 @@ void log(const char *const fmt, Ts... params)
 {
 #if (!LOGGING_QUIET)
     printf(fmt, params...);
+    fflush(stdout);
 #endif
     // TODO: log to file
 }

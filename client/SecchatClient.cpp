@@ -1,5 +1,6 @@
 #include "SecchatClient.hpp"
 
+#include "UserInterface.hpp"
 #include "Utils.hpp"
 
 #include <chrono>
@@ -14,7 +15,7 @@ SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
 {
     if (!mCrypto.init())
     {
-        utils::log("Crypto init failed\n");
+        ui::print("Crypto init failed\n");
     }
 }
 
@@ -26,8 +27,7 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
         [](std::weak_ptr<Session> /*sess*/) {
             // For client there should be only a single session (to server),
             // this means we got disconnected and have to handle this...
-            utils::log("[client] disconnected from server, closing client...\n");
-            fflush(stdout);
+            ui::print("[client] disconnected from server, closing client...\n");
 
             exit(0);
             // TODO: the disconnect should probably trigger server connection retry,
@@ -79,7 +79,7 @@ void SecchatClient::startChat(const std::string &userName)
 
 bool SecchatClient::joinRoom(const std::string &roomName)
 {
-    utils::log("[client] joining room %s\n", roomName.c_str());
+    ui::print("[client] joining room %s\n", roomName.c_str());
 
     serverJoinRoom(roomName);
 
@@ -101,8 +101,6 @@ bool SecchatClient::joinRoom(const std::string &roomName)
 
 bool SecchatClient::sendMessage(const std::string &roomName, const std::string &message)
 {
-    utils::log("[client] sending: %s\n", message.c_str());
-
     Proto::Frame frame{// ugly casts...
                        (uint32_t)mMyUserName.size(),
                        (uint32_t)roomName.size(),
@@ -137,8 +135,10 @@ void SecchatClient::handlePacket( //
         switch (payload.type)
         {
             case Proto::PayloadType::kNewUserIdAssigned:
-                utils::log("[client] user ID assigned by server: ");
-                utils::printCharacters(payload.payload.get(), payload.size);
+                {
+                    ui::print("[client] user ID assigned by server: ");
+                    ui::printCharacters(payload.payload.get(), payload.size);
+                }
                 break;
 
             case Proto::PayloadType::kChatRoomJoined:
@@ -150,8 +150,9 @@ void SecchatClient::handlePacket( //
                 break;
 
             default:
-                utils::log("[server] incorrect frame, NOT HANDLED: ");
-                utils::printCharactersHex(data, dataLen);
+                ui::print("[server] received incorrect frame, drop: [");
+                ui::printCharactersHex(data, dataLen, '\0');
+                ui::print(" ]\n");
                 break;
         }
     }

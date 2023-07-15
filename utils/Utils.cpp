@@ -2,7 +2,10 @@
 
 #include <cstdio>
 
-void utils::printCharacters(const uint8_t *const buffer, const uint32_t bufferSize, const char lastChar)
+void utils::printCharacters( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize,
+    const char lastChar)
 {
     for (uint32_t i = 0; i < bufferSize; ++i)
     {
@@ -14,7 +17,10 @@ void utils::printCharacters(const uint8_t *const buffer, const uint32_t bufferSi
     fflush(stdout);
 }
 
-void utils::printCharactersHex(const uint8_t *const buffer, const uint32_t bufferSize, const char lastChar)
+void utils::printCharactersHex( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize,
+    const char lastChar)
 {
     for (uint32_t i = 0; i < bufferSize; ++i)
     {
