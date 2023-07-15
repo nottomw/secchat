@@ -1,4 +1,4 @@
-name: CMake
+name: secchat ncurses
 
 on:
   push:

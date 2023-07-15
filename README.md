@@ -1,4 +1,7 @@
 ## Secchat
+
+![secchat ncurses](https://github.com/nottomw/secchat/actions/workflows/cmake.yml/badge.svg)
+
 ### Info
 Fun with crypto and networking.
 
