@@ -136,6 +136,7 @@ void SecchatClient::handlePacket( //
         {
             case Proto::PayloadType::kNewUserIdAssigned:
                 {
+                    // TODO: client should wait until this user id is assigned
                     ui::print("[client] user ID assigned by server: ");
                     ui::printCharacters(payload.payload.get(), payload.size);
                 }
