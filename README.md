@@ -9,8 +9,10 @@ Currently used:
 
 ### Build
 ```
-src $ cmake -G Ninja -S ../src/
-src $ ninja
+$ mkdir build
+$ cd build
+$ cmake -G Ninja -S ../src/
+$ ninja
 ```
 
 ### Config
