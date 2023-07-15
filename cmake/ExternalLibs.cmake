@@ -20,7 +20,9 @@ conan_cmake_run(REQUIRES asio/1.28.0
                 BUILD missing
                 BASIC_SETUP CMAKE_TARGETS)
 
-# TUI
-conan_cmake_run(REQUIRES ncurses/6.4
-                BUILD missing
-                BASIC_SETUP CMAKE_TARGETS)
+if ("${SECCHAT_MODE}" STREQUAL "ncurses")
+    # TUI
+    conan_cmake_run(REQUIRES ncurses/6.4
+                    BUILD missing
+                    BASIC_SETUP CMAKE_TARGETS)
+endif()

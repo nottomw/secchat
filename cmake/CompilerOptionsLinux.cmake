@@ -22,6 +22,7 @@ endif()
 
 add_compile_options(-Wall -Wextra -Werror -pedantic ${COMPILER_FLAGS})
 
+# TODO: fix -Werror=format-security ASAP
 message(WARNING "ADDED -Werror=format-security BECAUSE OF Utils::log - FIX REQUIRED FIX REQUIRED FIX REQUIRED FIX REQUIRED")
 add_compile_options(-Wno-format-security)
 
