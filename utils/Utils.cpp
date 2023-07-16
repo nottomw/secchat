@@ -9,7 +9,8 @@ void utils::printCharacters( //
 {
     for (uint32_t i = 0; i < bufferSize; ++i)
     {
-        utils::log("%c", buffer[i]);
+        const char charToPrint = isprint(buffer[i]) ? buffer[i] : 'X';
+        utils::log("%c", charToPrint);
     }
 
     utils::log("%c", lastChar);
