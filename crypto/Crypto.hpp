@@ -21,15 +21,25 @@ struct KeySym
     uint8_t mKey[kSymKeyByteCount];
 };
 
+struct SymEncryptedData
+{
+    std::shared_ptr<uint8_t[]> data;
+    std::shared_ptr<uint8_t[]> nonce;
+};
+
 bool init();
 
 KeyAsym keygenAsym();
 
 KeySym keygenSym();
 
-KeySym derive(const KeySym &key);
+KeySym derive(const KeySym &key,
+              const uint8_t *const context,
+              const uint32_t contextSize,
+              const uint8_t *const salt,
+              const uint32_t saltSize);
 
-bool symEncrypt( //
+SymEncryptedData symEncrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize);
@@ -37,9 +47,11 @@ bool symEncrypt( //
 std::shared_ptr<uint8_t[]> symDecrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
-    const uint32_t bufferSize);
+    const uint32_t bufferSize,
+    const uint8_t *const nonce,
+    const uint32_t nonceSize);
 
-bool asymEncrypt( //
+std::shared_ptr<uint8_t[]> asymEncrypt( //
     const KeyAsym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize);
