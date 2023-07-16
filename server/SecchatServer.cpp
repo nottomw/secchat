@@ -8,7 +8,7 @@ uint32_t SecchatServer::User::mGlobalUserId = 0U;
 SecchatServer::SecchatServer()
     : mReaderShouldRun{true}
 {
-    if (!mCrypto.init())
+    if (!crypto::init())
     {
         utils::log("Crypto init failed\n");
     }

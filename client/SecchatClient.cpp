@@ -8,12 +8,11 @@
 #include <thread>
 
 SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
-    : mCrypto{}
-    , mTransport{}
+    : mTransport{}
     , mReaderShouldRun{true}
     , mMessageUIScrollback{messageUIScrollback}
 {
-    if (!mCrypto.init())
+    if (crypto::init())
     {
         ui::print("Crypto init failed\n");
     }

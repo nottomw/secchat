@@ -19,17 +19,13 @@ public:
     bool sendMessage(const std::string &roomName, const std::string &message);
 
 private:
-    Crypto mCrypto;
     DataTransport mTransport;
 
     bool mReaderShouldRun;
     std::thread mChatReader;
 
-    using UserPubKey = uint64_t;
-    using UserPrivKey = uint64_t;
-
-    UserPrivKey mMyPrivateKey;
-    UserPubKey mMyPublicKey;
+    crypto::KeyAsym mKeyMyAsym;
+    crypto::KeySym mKeyChatGroup;
 
     std::string mMyUserName;
     std::vector<std::string> mJoinedRooms;

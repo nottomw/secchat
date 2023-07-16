@@ -15,7 +15,6 @@ public:
     void stop();
 
 private:
-    Crypto mCrypto;
     DataTransport mTransport;
 
     bool mReaderShouldRun;
