@@ -48,8 +48,6 @@ private:
     std::shared_ptr<asio::ip::tcp::acceptor> mAcceptor;
     std::shared_ptr<asio::ip::tcp::resolver> mResolver;
 
-    std::vector<asio::ip::tcp::socket> mSockets;
-
     std::mutex mSessionsMutex;
     std::vector<std::shared_ptr<Session>> mSessions;
 
