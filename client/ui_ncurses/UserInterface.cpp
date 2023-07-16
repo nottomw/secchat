@@ -306,7 +306,7 @@ void printCharacters( //
 
     for (uint32_t i = 0; i < bufferSize; ++i)
     {
-        const char charToPrint = isgraph(buffer[i]) ? buffer[i] : 'X';
+        const char charToPrint = (isgraph(buffer[i]) || (buffer[i] == ' ')) ? buffer[i] : 'X';
         ss << charToPrint;
     }
 

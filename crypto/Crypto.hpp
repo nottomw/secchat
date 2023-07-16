@@ -24,7 +24,16 @@ struct KeySym
 struct SymEncryptedData
 {
     std::shared_ptr<uint8_t[]> data;
+    uint32_t dataSize;
+
     std::shared_ptr<uint8_t[]> nonce;
+    uint32_t nonceSize;
+};
+
+struct SymDecryptedData
+{
+    std::shared_ptr<uint8_t[]> data;
+    uint32_t dataSize;
 };
 
 bool init();
@@ -44,7 +53,7 @@ SymEncryptedData symEncrypt( //
     const uint8_t *const buffer,
     const uint32_t bufferSize);
 
-std::shared_ptr<uint8_t[]> symDecrypt( //
+SymDecryptedData symDecrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize,
