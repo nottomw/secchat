@@ -203,6 +203,9 @@ void SecchatClient::serverJoinRoom(const std::string &roomName)
 
     Proto::populateHeader(frame, mMyUserName, roomName);
 
+    // TODO: this join could be now encrypted with server's public key, and
+    // should be definitely signed with client's key
+
     Proto::populatePayload(frame,
                            Proto::PayloadType::kJoinChatRoom,
                            (uint8_t *)roomName.c_str(), // ugly cast
