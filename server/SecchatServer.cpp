@@ -224,16 +224,17 @@ void SecchatServer::handleNewUser( //
 
     // TODO: reply with server's pubsign/pub keys (encrypted with users's pub key)
 
-    std::string destination;
-    destination.assign(frame.getHeader().source.get(), frame.getHeader().sourceSize);
-
     std::string source{"server"};
+    std::string destination = newUserFrame.userName;
+
     Proto::Frame replyFrame{                               //
                             (uint32_t)source.size(),       // source
                             (uint32_t)destination.size(),  // dest
                             (uint32_t)destination.size()}; // payload - assigned name
 
     Proto::populateHeader(replyFrame, source, destination);
+
+    //    Proto::populatePayloadUserConnectAck();
 
     Proto::populatePayload( //
         replyFrame,

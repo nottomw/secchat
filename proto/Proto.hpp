@@ -113,15 +113,17 @@ public:
         uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
     };
 
-    // source & dest pointers must be valid up until
-    // serialization - data not copied
+    struct PayloadUserConnectAck
+    {
+        uint8_t pubSignKey[crypto::kPubKeySignatureByteCount];
+        uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
+    };
+
     static void populateHeader( //
         Frame &frame,
         const std::string &source,
         const std::string &destination);
 
-    // payload pointer must be valid up until
-    // serialization - data not copied
     static void populatePayload( //
         Frame &frame,
         PayloadType type,
@@ -131,6 +133,11 @@ public:
     static void populatePayloadUserConnect( //
         Frame &frame,
         const std::string &userName,
+        const crypto::KeyAsymSignature &keySign,
+        const crypto::KeyAsym &key);
+
+    static void populatePayloadUserConnectAck( //
+        Frame &frame,
         const crypto::KeyAsymSignature &keySign,
         const crypto::KeyAsym &key);
 

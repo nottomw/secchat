@@ -46,17 +46,34 @@ void Proto::populatePayloadUserConnect( //
     const crypto::KeyAsymSignature &keySign,
     const crypto::KeyAsym &key)
 {
-    PayloadUserConnect payloadNewUser;
-    payloadNewUser.userName = userName;
+    PayloadUserConnect payloadUserConnect;
+    payloadUserConnect.userName = userName;
 
-    memcpy(payloadNewUser.pubSignKey, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
-    memcpy(payloadNewUser.pubEncryptKey, key.mKeyPub, crypto::kPubKeyByteCount);
+    memcpy(payloadUserConnect.pubSignKey, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
+    memcpy(payloadUserConnect.pubEncryptKey, key.mKeyPub, crypto::kPubKeyByteCount);
 
-    auto buffer = serializeUserConnect(payloadNewUser);
+    auto buffer = serializeUserConnect(payloadUserConnect);
 
     frame.payload.type = PayloadType::kUserConnect;
     frame.payload.payload = std::move(buffer.data);
     frame.payload.size = buffer.dataSize;
+}
+
+void Proto::populatePayloadUserConnectAck( //
+    Proto::Frame &frame,
+    const crypto::KeyAsymSignature &keySign,
+    const crypto::KeyAsym &key)
+{
+    Payload &pay = frame.getPayload();
+
+    uint8_t *const signOff = pay.payload.get();
+    uint8_t *const encrOff = pay.payload.get() + crypto::kPubKeySignatureByteCount;
+
+    memcpy(signOff, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
+    memcpy(encrOff, key.mKeyPub, crypto::kPubKeyByteCount);
+
+    frame.payload.type = PayloadType::kUserConnectAck;
+    frame.payload.size = crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
 }
 
 std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
