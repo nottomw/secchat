@@ -10,10 +10,19 @@ static constexpr uint32_t kPubKeyByteCount = 32U;
 static constexpr uint32_t kPrivKeyByteCount = 32U;
 static constexpr uint32_t kSymKeyByteCount = 32U;
 
+static constexpr uint32_t kPubKeySignatureByteCount = 32U;
+static constexpr uint32_t kPrivKeySignatureByteCount = 64U;
+
 struct KeyAsym
 {
     uint8_t mKeyPub[kPubKeyByteCount];
     uint8_t mKeyPriv[kPrivKeyByteCount];
+};
+
+struct KeyAsymSignature
+{
+    uint8_t mKeyPub[kPubKeySignatureByteCount];
+    uint8_t mKeyPriv[kPrivKeySignatureByteCount];
 };
 
 struct KeySym
@@ -21,24 +30,31 @@ struct KeySym
     uint8_t mKey[kSymKeyByteCount];
 };
 
-struct SymEncryptedData
+struct EncryptedData
 {
     std::shared_ptr<uint8_t[]> data;
     uint32_t dataSize;
 
+    // not used in asymmetric encryption
     std::shared_ptr<uint8_t[]> nonce;
     uint32_t nonceSize;
 };
 
-struct SymDecryptedData
+struct DecryptedData
 {
     std::shared_ptr<uint8_t[]> data;
     uint32_t dataSize;
 };
 
+using SignedData = DecryptedData;
+
 bool init();
 
+// Generate asym keys for encryption
 KeyAsym keygenAsym();
+
+// Generate asym keys for signatures
+KeyAsymSignature keygenAsymSign();
 
 KeySym keygenSym();
 
@@ -48,25 +64,30 @@ KeySym derive(const KeySym &key,
               const uint8_t *const salt,
               const uint32_t saltSize);
 
-SymEncryptedData symEncrypt( //
+EncryptedData symEncrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize);
 
-SymDecryptedData symDecrypt( //
+DecryptedData symDecrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize,
     const uint8_t *const nonce,
     const uint32_t nonceSize);
 
-std::shared_ptr<uint8_t[]> asymEncrypt( //
+EncryptedData asymEncrypt( //
     const KeyAsym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize);
 
-std::shared_ptr<uint8_t[]> asymDecrypt( //
+DecryptedData asymDecrypt( //
     const KeyAsym &key,
+    const uint8_t *const buffer,
+    const uint32_t bufferSize);
+
+SignedData asymSign( //
+    const KeyAsymSignature &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize);
 
