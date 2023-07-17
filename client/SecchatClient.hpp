@@ -35,6 +35,9 @@ private:
     std::string mMyUserName;
     std::vector<std::string> mJoinedRooms;
 
+    std::mutex mConnectedCondVarMutex;
+    std::condition_variable mConnectedCondVar;
+
     std::mutex mJoinedCondVarMutex;
     std::condition_variable mJoinedCondVar;
 

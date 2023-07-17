@@ -73,6 +73,11 @@ void SecchatClient::startChat(const std::string &userName)
     mMyUserName = userName;
 
     userConnect();
+
+    // TODO: Q&D hack
+    // TODO: requires some sequence enforcement mechanism, hacking for now
+    std::unique_lock lk{mConnectedCondVarMutex};
+    mConnectedCondVar.wait(lk, [&] { return true; });
 }
 
 bool SecchatClient::joinRoom(const std::string &roomName)
@@ -103,6 +108,9 @@ bool SecchatClient::sendMessage(const std::string &roomName, const std::string &
 
     Proto::populateHeader(frame, mMyUserName, roomName);
 
+    // TODO: there should be some kind of enforcement on when a sendMessage() can be
+    // sent, this should be done only when full symmetric encryption is available
+
     // TODO: this message should be signed
     // TODO: this message should be encrypted with sym key
 
@@ -131,9 +139,7 @@ void SecchatClient::handlePacket( //
         switch (payload.type)
         {
             case Proto::PayloadType::kUserConnectAck:
-                {
-                    handleConnectAck(framesIt);
-                }
+                handleConnectAck(framesIt);
                 break;
 
             case Proto::PayloadType::kChatRoomJoined:
@@ -158,13 +164,8 @@ void SecchatClient::userConnect()
     const std::string dest{"server"};
 
     Proto::Frame frame;
-
     Proto::populateHeader(frame, mMyUserName, dest);
-
-    Proto::populatePayloadUserConnect(frame,
-                                      mMyUserName,
-                                      mKeyMyAsymSign, // ugly cast
-                                      mKeyMyAsym);
+    Proto::populatePayloadUserConnect(frame, mMyUserName, mKeyMyAsymSign, mKeyMyAsym);
 
     std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
     assert(buffer);
@@ -174,8 +175,6 @@ void SecchatClient::userConnect()
 
 void SecchatClient::handleConnectAck(Proto::Frame &frame)
 {
-    // TODO: client should wait until this user id is assigned - need mechanism for waiting (fut/prom?)
-
     Proto::Payload &pay = frame.getPayload();
     const uint8_t *const payloadPtr = pay.payload.get();
     const uint32_t payloadSize = pay.size;
@@ -194,6 +193,8 @@ void SecchatClient::handleConnectAck(Proto::Frame &frame)
 
     memcpy(mKeyServerAsymSign.mKeyPub, connAck.pubSignKey, crypto::kPubKeySignatureByteCount);
     memcpy(mKeyServerAsym.mKeyPub, connAck.pubEncryptKey, crypto::kPubKeyByteCount);
+
+    mConnectedCondVar.notify_all();
 }
 
 void SecchatClient::serverJoinRoom(const std::string &roomName)
