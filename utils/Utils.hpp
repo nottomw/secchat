@@ -7,6 +7,8 @@
 namespace utils
 {
 
+// TODO: ByteArray needed
+
 void printCharacters( //
     const uint8_t *const buffer,
     const uint32_t bufferSize,
