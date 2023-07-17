@@ -2,12 +2,20 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <memory>
 #include <string>
 
 namespace utils
 {
 
-// TODO: ByteArray needed
+// TODO: proper byte array
+// Poor man's byte array for now
+class ByteArray
+{
+public:
+    std::unique_ptr<uint8_t[]> data;
+    uint32_t dataSize;
+};
 
 void printCharacters( //
     const uint8_t *const buffer,
