@@ -137,10 +137,10 @@ void SecchatClient::handlePacket( //
         Proto::Payload &payload = framesIt.getPayload();
         switch (payload.type)
         {
-            case Proto::PayloadType::kNewUserIdAssigned:
+            case Proto::PayloadType::kUserConnectAck:
                 {
-                    // TODO: client should receive server's public key here?
-                    // TODO: client should wait until this user id is assigned - need mechanism for waiting
+                    // TODO: client should receive server's public key here
+                    // TODO: client should wait until this user id is assigned - need mechanism for waiting (fut/prom?)
                     ui::print("[client] user ID assigned by server: ");
                     ui::printCharacters(payload.payload.get(), payload.size);
                 }

@@ -54,7 +54,7 @@ void Proto::populatePayloadNewUser( //
 
     auto buffer = serializeNewUser(payloadNewUser);
 
-    frame.payload.type = PayloadType::kNewUser;
+    frame.payload.type = PayloadType::kUserConnect;
     frame.payload.payload = std::move(buffer.data);
     frame.payload.size = buffer.dataSize;
 }

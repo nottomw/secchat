@@ -20,14 +20,15 @@ public:
     {
         kNone,
 
-        //  ------ PLAINTEXT messages, not signed
-        kNewUser,           // from user, contains pub key, server saves the pub key, broadcasts to all users
-        kNewUserIdAssigned, // from server, acknowledge new user
+        // ------ PLAINTEXT messages, not signed
 
-        // ------ PLAINTEXT messages, signed asym by sender:
+        kUserConnect, // from user, contains pub keys (sign & encrypt)
 
-        kMessageToServer,   // from user
-        kMessageFromServer, // from server
+        // ------ ENCRYPTED asym only
+
+        kUserConnectAck, // from server, contains servers pub keys (sign & encrypt), encrypted with user pub key
+
+        // ------ ENCRYPTED asym only, signed asym by sender:
 
         kNewSymKeyRequest, // from server, request new sym key generation and broadcast to all users
 

@@ -134,12 +134,14 @@ void SecchatServer::handlePacket( //
     auto receivedFrames = Proto::deserialize(data, dataLen);
     for (auto &framesIt : receivedFrames)
     {
+        // TODO: would be good to do some buffer/frame size verification here or in deserialization...
 
         Proto::Payload &payload = framesIt.getPayload();
         switch (payload.type)
         {
-            case Proto::PayloadType::kNewUser:
+            case Proto::PayloadType::kUserConnect:
                 handleNewUser(framesIt, session);
+                // TODO: broadcast the pubsign/pub keys to other users?
                 break;
 
             case Proto::PayloadType::kJoinChatRoom:
@@ -180,36 +182,36 @@ void SecchatServer::handleNewUser( //
         User *const user = *existingUser;
         user->mSession = session;
 
+        // TODO: If this is a existing user, verify the pubsign/pub keys match!!!
+        // TODO: if this is a existing user, and pubkeys OK, reply with connect ack, otherwise drop
+
         utils::log("[server] user %s already exists (for now update the session)\n", newUserFrame.userName.c_str());
-        return;
     }
-
-    User user;
-    user.mUserName = newUserFrame.userName;
-    user.mSession = session;
-
-    memcpy(user.keySign.mKeyPub, newUserFrame.pubSignKey, crypto::kPubKeySignatureByteCount);
-    memcpy(user.keyEncrypt.mKeyPub, newUserFrame.pubEncryptKey, crypto::kPubKeyByteCount);
-
-    uint32_t usersCount = 0U;
-
+    else
     {
-        std::lock_guard<std::mutex> lk{mUsersMutex};
-        mUsers.push_back(std::move(user));
-        usersCount = mUsers.size();
+        User user;
+        user.mUserName = newUserFrame.userName;
+        user.mSession = session;
+
+        memcpy(user.keySign.mKeyPub, newUserFrame.pubSignKey, crypto::kPubKeySignatureByteCount);
+        memcpy(user.keyEncrypt.mKeyPub, newUserFrame.pubEncryptKey, crypto::kPubKeyByteCount);
+
+        uint32_t usersCount = 0U;
+
+        {
+            std::lock_guard<std::mutex> lk{mUsersMutex};
+            mUsers.push_back(std::move(user));
+            usersCount = mUsers.size();
+        }
+
+        utils::log("[server] new user created: %s, pubsign/pub keys received\n", user.mUserName.c_str());
+        utils::log("[server] currently %d users active\n", usersCount);
     }
 
-    utils::log("[server] new user created: %s, pubsign/pub keys received\n", user.mUserName.c_str());
-    utils::log("[server] currently %d users active\n", usersCount);
-
-    // TODO: broadcast the pubsign/pub keys to other users?
     // TODO: reply with server's pubsign/pub keys (encrypted with users's pub key)
 
     std::string destination;
     destination.assign(frame.getHeader().source.get(), frame.getHeader().sourceSize);
-
-    // TODO: source should be some kind of address?
-    // TODO: reply should assign some ID?
 
     std::string source{"server"};
     Proto::Frame replyFrame{                               //
@@ -221,7 +223,7 @@ void SecchatServer::handleNewUser( //
 
     Proto::populatePayload( //
         replyFrame,
-        Proto::PayloadType::kNewUserIdAssigned,
+        Proto::PayloadType::kUserConnectAck,
         (uint8_t *)destination.c_str(),
         destination.size());
 
