@@ -19,10 +19,12 @@ void Proto::populateHeader( //
     frame.header.protoVersion = kProtoVersionCurrent;
     frame.header.timestampSend = 0U; // populated later
 
+    frame.header.source = std::make_unique<char[]>(source.size());
     memcpy(frame.header.source.get(), source.c_str(), source.size());
 
     frame.header.sourceSize = source.size();
 
+    frame.header.destination = std::make_unique<char[]>(destination.size());
     memcpy(frame.header.destination.get(), destination.c_str(), destination.size());
 
     frame.header.destinationSize = destination.size();
@@ -34,6 +36,8 @@ void Proto::populatePayload( //
     uint8_t *const payload,
     const uint32_t payloadSize)
 {
+    frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[payloadSize]);
+
     frame.payload.type = type;
     frame.payload.size = payloadSize;
 
@@ -64,16 +68,19 @@ void Proto::populatePayloadUserConnectAck( //
     const crypto::KeyAsymSignature &keySign,
     const crypto::KeyAsym &key)
 {
-    Payload &pay = frame.getPayload();
+    const uint32_t payloadSize = crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
 
-    uint8_t *const signOff = pay.payload.get();
-    uint8_t *const encrOff = pay.payload.get() + crypto::kPubKeySignatureByteCount;
+    frame.payload.payload = std::make_unique<uint8_t[]>(payloadSize);
+
+    uint8_t *const payloadAddr = frame.payload.payload.get();
+    uint8_t *const signOff = payloadAddr;
+    uint8_t *const encrOff = payloadAddr + crypto::kPubKeySignatureByteCount;
 
     memcpy(signOff, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
     memcpy(encrOff, key.mKeyPub, crypto::kPubKeyByteCount);
 
     frame.payload.type = PayloadType::kUserConnectAck;
-    frame.payload.size = crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
+    frame.payload.size = payloadSize;
 }
 
 std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
@@ -231,16 +238,6 @@ Proto::PayloadUserConnect Proto::deserializeUserConnect( //
     return payload;
 }
 
-Proto::Frame::Frame( //
-    const uint32_t sourceSize,
-    const uint32_t destinationSize,
-    const uint32_t payloadSize)
-{
-    header.source = std::unique_ptr<char[]>(new char[sourceSize]);
-    header.destination = std::unique_ptr<char[]>(new char[destinationSize]);
-    payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[payloadSize]);
-}
-
 uint32_t Proto::Frame::getSize() const
 {
     constexpr uint32_t kHeaderSizeStatic = //
@@ -278,7 +275,7 @@ Proto::Payload &Proto::Frame::getPayload()
 
 Proto::Frame::Frame()
 {
-    // That's an empty frame - memory allocated during deserialize
+    // memory allocated later
 }
 
 Proto::Payload::Payload()

@@ -83,9 +83,7 @@ public:
     struct Frame
     {
     public:
-        Frame(const uint32_t sourceSize,
-              const uint32_t destinationSize,
-              const uint32_t payloadSize); // create frame for serialize
+        Frame();
 
         Frame(const Frame &) = default;
         Frame(Frame &&) = default;
@@ -98,8 +96,6 @@ public:
         Payload &getPayload();
 
     private:
-        Frame(); // create frame for deserialize
-
         Header header;
         Payload payload;
 

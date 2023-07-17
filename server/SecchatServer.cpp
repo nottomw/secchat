@@ -227,10 +227,7 @@ void SecchatServer::handleNewUser( //
     std::string source{"server"};
     std::string destination = newUserFrame.userName;
 
-    Proto::Frame replyFrame{                               //
-                            (uint32_t)source.size(),       // source
-                            (uint32_t)destination.size(),  // dest
-                            (uint32_t)destination.size()}; // payload - assigned name
+    Proto::Frame replyFrame;
 
     Proto::populateHeader(replyFrame, source, destination);
 
@@ -281,11 +278,10 @@ void SecchatServer::handleJoinChatRoom( //
     {
         std::string source{"server"};
 
-        Proto::Frame frame{//
-                           (uint32_t)source.size(),
-                           (uint32_t)userName.size(),
-                           (uint32_t)chatRoomName.size()};
+        Proto::Frame frame;
+
         Proto::populateHeader(frame, source, userName);
+
         Proto::populatePayload( //
             frame,
             Proto::PayloadType::kChatRoomJoined,
