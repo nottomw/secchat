@@ -147,6 +147,7 @@ static void runChatTUI( //
             case '\n':
                 {
                     // special command
+                    // TODO: extract "special commands" to some parser
                     const std::string cmdQuit = "/quit";
                     const std::string cmdQuitShort = "/q";
                     if ((inputText == cmdQuit) || (inputText == cmdQuitShort))

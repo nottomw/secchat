@@ -75,8 +75,8 @@ SymEncryptedData symEncrypt( //
 
     res.nonce =                     //
         std::shared_ptr<uint8_t[]>( //
-            new uint8_t[crypto_secretbox_MACBYTES + bufferSize]);
-    res.nonceSize = crypto_secretbox_MACBYTES + bufferSize;
+            new uint8_t[crypto_secretbox_NONCEBYTES]);
+    res.nonceSize = crypto_secretbox_NONCEBYTES;
 
     randombytes_buf(res.nonce.get(), crypto_secretbox_NONCEBYTES);
 
@@ -107,7 +107,7 @@ SymDecryptedData symDecrypt( //
 {
     SymDecryptedData decryptedData;
 
-    assert(nonceSize == bufferSize);
+    assert(nonceSize == crypto_secretbox_NONCEBYTES);
 
     const uint32_t plaintextSize = bufferSize - crypto_secretbox_MACBYTES;
 
