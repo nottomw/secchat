@@ -174,10 +174,10 @@ void SecchatClient::serverNewUserAnnounce()
 
     Proto::populateHeader(frame, mMyUserName, dest);
 
-    Proto::populatePayloadNewUser(frame,
-                                  mMyUserName,
-                                  mKeyMyAsymSign, // ugly cast
-                                  mKeyMyAsym);
+    Proto::populatePayloadUserConnect(frame,
+                                      mMyUserName,
+                                      mKeyMyAsymSign, // ugly cast
+                                      mKeyMyAsym);
 
     std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
     assert(buffer);

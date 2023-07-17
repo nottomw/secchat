@@ -106,7 +106,7 @@ public:
         friend class Proto;
     };
 
-    struct PayloadNewUser
+    struct PayloadUserConnect
     {
         std::string userName;
         uint8_t pubSignKey[crypto::kPubKeySignatureByteCount];
@@ -128,7 +128,7 @@ public:
         uint8_t *const payload,
         const uint32_t payloadSize);
 
-    static void populatePayloadNewUser( //
+    static void populatePayloadUserConnect( //
         Frame &frame,
         const std::string &userName,
         const crypto::KeyAsymSignature &keySign,
@@ -141,10 +141,10 @@ public:
         const uint8_t *const buffer,
         const uint32_t bufferSize);
 
-    static utils::ByteArray serializeNewUser( //
-        const PayloadNewUser &payload);
+    static utils::ByteArray serializeUserConnect( //
+        const PayloadUserConnect &payload);
 
-    static PayloadNewUser deserializeNewUser( //
+    static PayloadUserConnect deserializeUserConnect( //
         const uint8_t *const buffer,
         const uint32_t bufferSize);
 };

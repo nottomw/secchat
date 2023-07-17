@@ -10,8 +10,23 @@ SecchatServer::SecchatServer()
 {
     if (!crypto::init())
     {
-        utils::log("Crypto init failed\n");
+        utils::log("[server] crypto init failed\n");
     }
+
+    utils::log("[server] -- crypto keys start --\n");
+    utils::log("[server] crypto: generatic signing key pair: pub, priv\n");
+    mKeyMyAsym = crypto::keygenAsym();
+
+    utils::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
+    utils::printCharactersHex(mKeyMyAsym.mKeyPriv, crypto::kPrivKeyByteCount);
+
+    utils::log("[server] crypto: generatic encrypting key pair\n");
+    mKeyMyAsymSign = crypto::keygenAsymSign();
+
+    utils::printCharactersHex(mKeyMyAsymSign.mKeyPub, crypto::kPubKeySignatureByteCount);
+    utils::printCharactersHex(mKeyMyAsymSign.mKeyPriv, crypto::kPrivKeySignatureByteCount);
+
+    utils::log("[server] -- crypto keys end --\n");
 }
 
 void SecchatServer::start(const uint16_t serverPort)
@@ -169,7 +184,7 @@ void SecchatServer::handleNewUser( //
     Proto::Payload &payload = frame.getPayload();
     const uint32_t payloadSize = payload.size;
 
-    auto newUserFrame = Proto::deserializeNewUser(payload.payload.get(), payloadSize);
+    auto newUserFrame = Proto::deserializeUserConnect(payload.payload.get(), payloadSize);
 
     utils::log("[server] received pubsign/pub keys from %s\n", //
                newUserFrame.userName.c_str());

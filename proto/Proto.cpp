@@ -40,19 +40,19 @@ void Proto::populatePayload( //
     memcpy(frame.payload.payload.get(), payload, payloadSize);
 }
 
-void Proto::populatePayloadNewUser( //
+void Proto::populatePayloadUserConnect( //
     Proto::Frame &frame,
     const std::string &userName,
     const crypto::KeyAsymSignature &keySign,
     const crypto::KeyAsym &key)
 {
-    PayloadNewUser payloadNewUser;
+    PayloadUserConnect payloadNewUser;
     payloadNewUser.userName = userName;
 
     memcpy(payloadNewUser.pubSignKey, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
     memcpy(payloadNewUser.pubEncryptKey, key.mKeyPub, crypto::kPubKeyByteCount);
 
-    auto buffer = serializeNewUser(payloadNewUser);
+    auto buffer = serializeUserConnect(payloadNewUser);
 
     frame.payload.type = PayloadType::kUserConnect;
     frame.payload.payload = std::move(buffer.data);
@@ -151,8 +151,8 @@ std::vector<Proto::Frame> Proto::deserialize( //
     return allFrames;
 }
 
-utils::ByteArray Proto::serializeNewUser( //
-    const Proto::PayloadNewUser &payload)
+utils::ByteArray Proto::serializeUserConnect( //
+    const Proto::PayloadUserConnect &payload)
 {
     constexpr uint32_t usernameSizeSize = sizeof(uint32_t);
     const uint32_t userNameSize = payload.userName.size();
@@ -185,13 +185,13 @@ utils::ByteArray Proto::serializeNewUser( //
     return ba;
 }
 
-Proto::PayloadNewUser Proto::deserializeNewUser( //
+Proto::PayloadUserConnect Proto::deserializeUserConnect( //
     const uint8_t *const buffer,
     const uint32_t /*bufferSize*/)
 {
     // TODO: check bufferSize
 
-    PayloadNewUser payload;
+    PayloadUserConnect payload;
 
     const uint8_t *bufferPtr = buffer;
 

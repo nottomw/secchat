@@ -60,6 +60,9 @@ private:
 
     std::vector<Room> mRooms;
 
+    crypto::KeyAsym mKeyMyAsym;
+    crypto::KeyAsymSignature mKeyMyAsymSign;
+
     User &findUserById(const UserId userId);
 
     void handlePacket( //
