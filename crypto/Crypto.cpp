@@ -1,6 +1,7 @@
 #include "Crypto.hpp"
 
 #include <cassert>
+#include <cstring>
 #include <memory>
 #include <sodium.h>
 
@@ -240,6 +241,23 @@ std::optional<NonsignedData> signedVerify( //
     nonsignedData.dataSize = nonsignedDataSize;
 
     return nonsignedData;
+}
+
+KeyAsym::KeyAsym(const KeyAsym &k)
+{
+    copy(k);
+}
+
+KeyAsym &KeyAsym::operator=(const KeyAsym &k)
+{
+    copy(k);
+    return *this;
+}
+
+void KeyAsym::copy(const KeyAsym &k)
+{
+    memcpy(mKeyPub, k.mKeyPub, kPubKeyByteCount);
+    memcpy(mKeyPriv, k.mKeyPriv, kPrivKeyByteCount);
 }
 
 } // namespace crypto

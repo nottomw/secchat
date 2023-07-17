@@ -13,18 +13,14 @@ SecchatServer::SecchatServer()
         utils::log("[server] crypto init failed\n");
     }
 
-    utils::log("[server] -- crypto keys start --\n");
-    utils::log("[server] crypto: generatic signing key pair: pub, priv\n");
-    mKeyMyAsym = crypto::keygenAsym();
-
-    utils::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
-    utils::printCharactersHex(mKeyMyAsym.mKeyPriv, crypto::kPrivKeyByteCount);
-
-    utils::log("[server] crypto: generatic encrypting key pair\n");
+    utils::log("[server] -- crypto keys begin --\n");
+    utils::log("[server] crypto: generatic signing key pair, pub:\n");
     mKeyMyAsymSign = crypto::keygenAsymSign();
-
     utils::printCharactersHex(mKeyMyAsymSign.mKeyPub, crypto::kPubKeySignatureByteCount);
-    utils::printCharactersHex(mKeyMyAsymSign.mKeyPriv, crypto::kPrivKeySignatureByteCount);
+
+    utils::log("[server] crypto: generatic encrypting key pair, pub:\n");
+    mKeyMyAsym = crypto::keygenAsym();
+    utils::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
 
     utils::log("[server] -- crypto keys end --\n");
 }
@@ -184,10 +180,17 @@ void SecchatServer::handleNewUser( //
     Proto::Payload &payload = frame.getPayload();
     const uint32_t payloadSize = payload.size;
 
-    auto newUserFrame = Proto::deserializeUserConnect(payload.payload.get(), payloadSize);
+    Proto::PayloadUserConnect newUserFrame = //
+        Proto::deserializeUserConnect(payload.payload.get(), payloadSize);
 
-    utils::log("[server] received pubsign/pub keys from %s\n", //
-               newUserFrame.userName.c_str());
+    utils::log("[server] received pubsign/pub keys from %s\n", newUserFrame.userName.c_str());
+    utils::log("[server] client sign pubkey:\n");
+    utils::printCharactersHex(newUserFrame.pubSignKey, crypto::kPubKeySignatureByteCount);
+
+    utils::log("[server] client encrypt pubkey:\n");
+    utils::printCharactersHex(newUserFrame.pubEncryptKey, crypto::kPubKeyByteCount);
+
+    crypto::KeyAsym userEncryptionPubKey;
 
     const auto existingUser = verifyUserExists(newUserFrame.userName);
     if (existingUser)
@@ -198,6 +201,8 @@ void SecchatServer::handleNewUser( //
         // for now just overwriting the session
         User *const user = *existingUser;
         user->mSession = session;
+
+        userEncryptionPubKey = user->keyEncrypt;
 
         utils::log("[server] user %s already exists (for now update the session)\n", newUserFrame.userName.c_str());
     }
@@ -210,6 +215,8 @@ void SecchatServer::handleNewUser( //
         memcpy(user.keySign.mKeyPub, newUserFrame.pubSignKey, crypto::kPubKeySignatureByteCount);
         memcpy(user.keyEncrypt.mKeyPub, newUserFrame.pubEncryptKey, crypto::kPubKeyByteCount);
 
+        userEncryptionPubKey = user.keyEncrypt;
+
         uint32_t usersCount = 0U;
 
         {
@@ -218,7 +225,7 @@ void SecchatServer::handleNewUser( //
             usersCount = mUsers.size();
         }
 
-        utils::log("[server] new user created: %s, pubsign/pub keys received\n", user.mUserName.c_str());
+        utils::log("[server] new user created: %s, pubsign/pub keys received\n", newUserFrame.userName.c_str());
         utils::log("[server] currently %d users active\n", usersCount);
     }
 
@@ -231,13 +238,11 @@ void SecchatServer::handleNewUser( //
 
     Proto::populateHeader(replyFrame, source, destination);
 
-    //    Proto::populatePayloadUserConnectAck();
-
-    Proto::populatePayload( //
+    Proto::populatePayloadUserConnectAck( //
         replyFrame,
-        Proto::PayloadType::kUserConnectAck,
-        (uint8_t *)destination.c_str(),
-        destination.size());
+        mKeyMyAsymSign,
+        mKeyMyAsym,
+        userEncryptionPubKey);
 
     auto replyFrameSer = Proto::serialize(replyFrame);
 

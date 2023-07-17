@@ -135,7 +135,8 @@ public:
     static void populatePayloadUserConnectAck( //
         Frame &frame,
         const crypto::KeyAsymSignature &keySign,
-        const crypto::KeyAsym &key);
+        const crypto::KeyAsym &key,
+        const crypto::KeyAsym &payloadEncryptionKey);
 
     static std::unique_ptr<uint8_t[]> serialize( //
         const Frame &frame);
@@ -148,6 +149,10 @@ public:
         const PayloadUserConnect &payload);
 
     static PayloadUserConnect deserializeUserConnect( //
+        const uint8_t *const buffer,
+        const uint32_t bufferSize);
+
+    static PayloadUserConnectAck deserializeUserConnectAck( //
         const uint8_t *const buffer,
         const uint32_t bufferSize);
 };

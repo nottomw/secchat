@@ -27,6 +27,9 @@ private:
     crypto::KeyAsym mKeyMyAsym;
     crypto::KeyAsymSignature mKeyMyAsymSign;
 
+    crypto::KeyAsym mKeyServerAsym;
+    crypto::KeyAsymSignature mKeyServerAsymSign;
+
     crypto::KeySym mKeyChatGroup;
 
     std::string mMyUserName;
@@ -42,7 +45,8 @@ private:
         const uint32_t dataLen,
         std::shared_ptr<Session> session);
 
-    void serverNewUserAnnounce();
+    void userConnect();
+    void handleConnectAck(Proto::Frame &frame);
     void serverJoinRoom(const std::string &roomName);
     void handleChatRoomJoined(Proto::Frame &frame);
     void handleMessageToRoom(Proto::Frame &frame);

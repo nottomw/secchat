@@ -66,21 +66,25 @@ void Proto::populatePayloadUserConnect( //
 void Proto::populatePayloadUserConnectAck( //
     Proto::Frame &frame,
     const crypto::KeyAsymSignature &keySign,
-    const crypto::KeyAsym &key)
+    const crypto::KeyAsym &key,
+    const crypto::KeyAsym &payloadEncryptionKey)
 {
     const uint32_t payloadSize = crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
 
-    frame.payload.payload = std::make_unique<uint8_t[]>(payloadSize);
+    auto tmpBuffer = std::make_unique<uint8_t[]>(payloadSize);
 
-    uint8_t *const payloadAddr = frame.payload.payload.get();
-    uint8_t *const signOff = payloadAddr;
-    uint8_t *const encrOff = payloadAddr + crypto::kPubKeySignatureByteCount;
+    uint8_t *const tmpBufferAddr = tmpBuffer.get();
+    uint8_t *const signOff = tmpBufferAddr;
+    uint8_t *const encrOff = tmpBufferAddr + crypto::kPubKeySignatureByteCount;
 
     memcpy(signOff, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
     memcpy(encrOff, key.mKeyPub, crypto::kPubKeyByteCount);
 
+    crypto::EncryptedData encrypted = crypto::asymEncrypt(payloadEncryptionKey, tmpBufferAddr, payloadSize);
+
     frame.payload.type = PayloadType::kUserConnectAck;
-    frame.payload.size = payloadSize;
+    frame.payload.payload = std::move(encrypted.data);
+    frame.payload.size = encrypted.dataSize;
 }
 
 std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
@@ -236,6 +240,20 @@ Proto::PayloadUserConnect Proto::deserializeUserConnect( //
     std::memcpy(payload.pubEncryptKey, bufferPtr, crypto::kPubKeyByteCount);
 
     return payload;
+}
+
+Proto::PayloadUserConnectAck Proto::deserializeUserConnectAck( //
+    const uint8_t *const buffer,
+    const uint32_t bufferSize)
+{
+    assert(bufferSize == (crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount));
+
+    PayloadUserConnectAck ack;
+
+    memcpy(ack.pubSignKey, buffer, crypto::kPubKeySignatureByteCount);
+    memcpy(ack.pubEncryptKey, buffer + crypto::kPubKeySignatureByteCount, crypto::kPubKeyByteCount);
+
+    return ack;
 }
 
 uint32_t Proto::Frame::getSize() const

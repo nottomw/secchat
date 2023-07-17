@@ -16,8 +16,15 @@ static constexpr uint32_t kPrivKeySignatureByteCount = 64U;
 
 struct KeyAsym
 {
+    KeyAsym() = default;
+    KeyAsym(const KeyAsym &k);
+    KeyAsym &operator=(const KeyAsym &k);
+
     uint8_t mKeyPub[kPubKeyByteCount];
     uint8_t mKeyPriv[kPrivKeyByteCount];
+
+private:
+    void copy(const KeyAsym &k);
 };
 
 struct KeyAsymSignature

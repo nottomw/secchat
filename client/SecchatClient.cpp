@@ -17,18 +17,14 @@ SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
         ui::print("Crypto init failed\n");
     }
 
-    ui::print("[client] -- crypto keys start --\n");
-    ui::print("[client] crypto: generatic signing key pair: pub, priv\n");
-    mKeyMyAsym = crypto::keygenAsym();
-
-    ui::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
-    ui::printCharactersHex(mKeyMyAsym.mKeyPriv, crypto::kPrivKeyByteCount);
-
-    ui::print("[client] crypto: generatic encrypting key pair\n");
+    ui::print("[client] -- crypto keys begin --\n");
+    ui::print("[client] crypto: generatic signing key pair, pub:\n");
     mKeyMyAsymSign = crypto::keygenAsymSign();
-
     ui::printCharactersHex(mKeyMyAsymSign.mKeyPub, crypto::kPubKeySignatureByteCount);
-    ui::printCharactersHex(mKeyMyAsymSign.mKeyPriv, crypto::kPrivKeySignatureByteCount);
+
+    ui::print("[client] crypto: generatic encrypting key pair, pub:\n");
+    mKeyMyAsym = crypto::keygenAsym();
+    ui::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
 
     ui::print("[client] -- crypto keys end --\n");
 }
@@ -76,7 +72,7 @@ void SecchatClient::startChat(const std::string &userName)
 {
     mMyUserName = userName;
 
-    serverNewUserAnnounce();
+    userConnect();
 }
 
 bool SecchatClient::joinRoom(const std::string &roomName)
@@ -136,10 +132,7 @@ void SecchatClient::handlePacket( //
         {
             case Proto::PayloadType::kUserConnectAck:
                 {
-                    // TODO: client should receive server's public key here
-                    // TODO: client should wait until this user id is assigned - need mechanism for waiting (fut/prom?)
-                    ui::print("[client] user ID assigned by server: ");
-                    ui::printCharacters(payload.payload.get(), payload.size);
+                    handleConnectAck(framesIt);
                 }
                 break;
 
@@ -160,7 +153,7 @@ void SecchatClient::handlePacket( //
     }
 }
 
-void SecchatClient::serverNewUserAnnounce()
+void SecchatClient::userConnect()
 {
     const std::string dest{"server"};
 
@@ -177,6 +170,30 @@ void SecchatClient::serverNewUserAnnounce()
     assert(buffer);
 
     mTransport.sendBlocking(buffer.get(), frame.getSize());
+}
+
+void SecchatClient::handleConnectAck(Proto::Frame &frame)
+{
+    // TODO: client should wait until this user id is assigned - need mechanism for waiting (fut/prom?)
+
+    Proto::Payload &pay = frame.getPayload();
+    const uint8_t *const payloadPtr = pay.payload.get();
+    const uint32_t payloadSize = pay.size;
+
+    const crypto::DecryptedData data = crypto::asymDecrypt(mKeyMyAsym, payloadPtr, payloadSize);
+
+    Proto::PayloadUserConnectAck connAck = //
+        Proto::deserializeUserConnectAck(data.data.get(), data.dataSize);
+
+    ui::print("[client] received server pubsign/pub keys\n");
+    ui::print("[client] server sign pubkey:\n");
+    ui::printCharactersHex(connAck.pubSignKey, crypto::kPubKeySignatureByteCount);
+
+    ui::print("[client] server encrypt pubkey:\n");
+    ui::printCharactersHex(connAck.pubEncryptKey, crypto::kPubKeyByteCount);
+
+    memcpy(mKeyServerAsymSign.mKeyPub, connAck.pubSignKey, crypto::kPubKeySignatureByteCount);
+    memcpy(mKeyServerAsym.mKeyPub, connAck.pubEncryptKey, crypto::kPubKeyByteCount);
 }
 
 void SecchatClient::serverJoinRoom(const std::string &roomName)
