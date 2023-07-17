@@ -1,35 +1,51 @@
 #pragma once
 
+#include "Crypto.hpp"
+#include "Utils.hpp"
+
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
+namespace crypto
+{
+struct KeyAsym;
+}
+
 class Proto
 {
 public:
-    // TODO: how to ensure the user/owner is who he claims to be
-
     enum class PayloadType
     {
         kNone,
 
-        kMessageToServer,
-        kMessageFromServer,
+        //  ------ PLAINTEXT messages, not signed
+        kNewUser,           // from user, contains pub key, server saves the pub key, broadcasts to all users
+        kNewUserIdAssigned, // from server, acknowledge new user
 
-        k$$$MessageToRoom, // from user - encrypted sym
-        k$$$MessageToUser, // from user - encrypted sym
+        // ------ PLAINTEXT messages, signed asym by sender:
 
-        kMessageFromServerSymKeyRequest, // contains pub key
-        k$$$ChatGroupSymKey,             // from user - encrypted sym
+        kMessageToServer,   // from user
+        kMessageFromServer, // from server
 
-        // server comm payload types
-        kNewUser,           // sent by user - contains pub key
-        kNewUserIdAssigned, // sent by server
+        kNewSymKeyRequest, // from server, request new sym key generation and broadcast to all users
 
-        kJoinChatRoom,   // user
-        kLeaveChatRoom,  // user
-        kChatRoomJoined, // server - room already exists
+        kJoinChatRoom,   // from user
+        kLeaveChatRoom,  // from user
+        kChatRoomJoined, // from server, acknowledge room join
+
+        // ------ ENCRYPTED messages asym, signed asym by sender:
+
+        k$$$ChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users
+        k$$$ChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user pubkey
+
+        // ------ ENCRYPTED messages sym, signed asym by sender:
+
+        k$$$MessageToRoom, // from user, encrypted sym, signed asym
+        k$$$MessageToUser, // from user, encrypted sym, signed asym
+
+        k$$$UserAsymKeyChanged, // send by user - new pubkey, signed with old asym key, encrypted sym
     };
 
     struct Header
@@ -89,6 +105,13 @@ public:
         friend class Proto;
     };
 
+    struct PayloadNewUser
+    {
+        std::string userName;
+        uint8_t pubSignKey[crypto::kPubKeySignatureByteCount];
+        uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
+    };
+
     // source & dest pointers must be valid up until
     // serialization - data not copied
     static void populateHeader( //
@@ -104,12 +127,23 @@ public:
         uint8_t *const payload,
         const uint32_t payloadSize);
 
-    static std::unique_ptr<uint8_t[]> serialize(const Frame &frame);
+    static void populatePayloadNewUser( //
+        Frame &frame,
+        const std::string &userName,
+        const crypto::KeyAsymSignature &keySign,
+        const crypto::KeyAsym &key);
+
+    static std::unique_ptr<uint8_t[]> serialize( //
+        const Frame &frame);
 
     static std::vector<Frame> deserialize( //
         const uint8_t *const buffer,
         const uint32_t bufferSize);
 
-    // serialize() - streams?
-    // deserialize() - streams?
+    static utils::ByteArray serializeNewUser( //
+        const PayloadNewUser &payload);
+
+    static PayloadNewUser deserializeNewUser( //
+        const uint8_t *const buffer,
+        const uint32_t bufferSize);
 };

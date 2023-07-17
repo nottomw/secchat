@@ -64,6 +64,8 @@ void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
 {
     setTransportMode(Mode::kClient);
 
+    // TODO: there should be a possibility to verify the connection was successful
+
     mResolver = std::make_shared<asio::ip::tcp::resolver>(mIoContext);
 
     auto endpoints = mResolver->resolve(ipAddr, std::to_string(port));

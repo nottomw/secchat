@@ -31,6 +31,10 @@ int main(int argc, char **argv)
 
     ui::print("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
 
+    // TODO: client: generate pub/priv keys, sign all messages
+    // TODO: client: verify server signature
+    // TODO: client: grab symmetric group chat key
+
     SecchatClient client{formattedMessagesToUI};
     client.connectToServer("127.0.0.1", 12345);
     client.startChat(userName);

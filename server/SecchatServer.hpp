@@ -6,6 +6,8 @@
 
 #include <optional>
 
+// TODO: persistency - BerkeleyDB (?)
+
 class SecchatServer
 {
 public:
@@ -35,6 +37,9 @@ private:
         UserId id;
         std::string mUserName;
         std::weak_ptr<Session> mSession;
+
+        crypto::KeyAsymSignature keySign;
+        crypto::KeyAsym keyEncrypt;
     };
 
     std::mutex mUsersMutex;

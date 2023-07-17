@@ -86,14 +86,14 @@ EncryptedData symEncrypt( //
     EncryptedData res;
 
     res.nonce =                     //
-        std::shared_ptr<uint8_t[]>( //
+        std::unique_ptr<uint8_t[]>( //
             new uint8_t[crypto_secretbox_NONCEBYTES]);
     res.nonceSize = crypto_secretbox_NONCEBYTES;
 
     randombytes_buf(res.nonce.get(), crypto_secretbox_NONCEBYTES);
 
     res.data =                      //
-        std::shared_ptr<uint8_t[]>( //
+        std::unique_ptr<uint8_t[]>( //
             new uint8_t[crypto_secretbox_MACBYTES + bufferSize]);
     res.dataSize = crypto_secretbox_MACBYTES + bufferSize;
 
@@ -124,7 +124,7 @@ DecryptedData symDecrypt( //
     const uint32_t plaintextSize = bufferSize - crypto_secretbox_MACBYTES;
 
     decryptedData.data =            //
-        std::shared_ptr<uint8_t[]>( //
+        std::unique_ptr<uint8_t[]>( //
             new uint8_t[plaintextSize]);
     decryptedData.dataSize = plaintextSize;
 
@@ -148,7 +148,7 @@ EncryptedData asymEncrypt( //
 
     EncryptedData data;
 
-    data.data = std::shared_ptr<uint8_t[]>( //
+    data.data = std::unique_ptr<uint8_t[]>( //
         new uint8_t[encryptedDataSize]);
     data.dataSize = encryptedDataSize;
 
@@ -170,7 +170,7 @@ DecryptedData asymDecrypt( //
     const uint32_t decryptedDataSize = bufferSize - crypto_box_SEALBYTES;
 
     DecryptedData data;
-    data.data = std::shared_ptr<uint8_t[]>( //
+    data.data = std::unique_ptr<uint8_t[]>( //
         new uint8_t[decryptedDataSize]);
     data.dataSize = decryptedDataSize;
 
@@ -196,7 +196,7 @@ SignedData sign( //
     const uint32_t signedDataSize = bufferSize + crypto_sign_BYTES;
     signedData.dataSize = signedDataSize;
 
-    signedData.data = std::shared_ptr<uint8_t[]>( //
+    signedData.data = std::unique_ptr<uint8_t[]>( //
         new uint8_t[signedDataSize]);
 
     unsigned long long signedMessageLen = 0U;
@@ -219,7 +219,7 @@ std::optional<NonsignedData> signedVerify( //
     const uint32_t bufferSize)
 {
     NonsignedData nonsignedData;
-    nonsignedData.data = std::shared_ptr<uint8_t[]>( //
+    nonsignedData.data = std::unique_ptr<uint8_t[]>( //
         new uint8_t[bufferSize]);
     nonsignedData.dataSize = 0U; // updated later
 

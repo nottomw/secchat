@@ -33,17 +33,17 @@ struct KeySym
 
 struct EncryptedData
 {
-    std::shared_ptr<uint8_t[]> data;
+    std::unique_ptr<uint8_t[]> data;
     uint32_t dataSize;
 
     // not used in asymmetric encryption
-    std::shared_ptr<uint8_t[]> nonce;
+    std::unique_ptr<uint8_t[]> nonce;
     uint32_t nonceSize;
 };
 
 struct DecryptedData
 {
-    std::shared_ptr<uint8_t[]> data;
+    std::unique_ptr<uint8_t[]> data;
     uint32_t dataSize;
 };
 

@@ -124,6 +124,9 @@ void SecchatServer::handlePacket( //
     const uint32_t dataLen,
     std::shared_ptr<Session> session)
 {
+
+    // TODO: server should also be able to sign and verify signatures of users
+
     // Track the offset of a specific frame in raw buffer so it can be easily
     // forwarded to clients without another serialization.
     const uint8_t *dataOffset = data;
@@ -155,36 +158,38 @@ void SecchatServer::handlePacket( //
 
         dataOffset += framesIt.getSize();
     }
-
-    // handle sym key exchange -> forward user pub key to all users
-    // handle asym key exchange -> forward to all users
-    // handle messages -> forward
 }
 
 void SecchatServer::handleNewUser( //
     Proto::Frame &frame,
     std::shared_ptr<Session> session)
 {
-    std::string userName;
-    userName.assign((char *)frame.getPayload().payload.get(), frame.getPayload().size);
+    Proto::Payload &payload = frame.getPayload();
+    const uint32_t payloadSize = payload.size;
 
-    const auto existingUser = verifyUserExists(userName);
+    auto newUserFrame = Proto::deserializeNewUser(payload.payload.get(), payloadSize);
+
+    utils::log("[server] received pubsign/pub keys from %s\n", //
+               newUserFrame.userName.c_str());
+
+    const auto existingUser = verifyUserExists(newUserFrame.userName);
     if (existingUser)
     {
-        // TODO: what if it's same user but new session?
-        // Assuming the user identity is validated for now and just overwriting the session.
+        // TODO: the user should be removed from server if not active for some period of time.
+        // for now just overwriting the session
         User *const user = *existingUser;
         user->mSession = session;
 
-        utils::log("[server] user %s already exists, DROP (but update the session)\n", userName.c_str());
+        utils::log("[server] user %s already exists (for now update the session)\n", newUserFrame.userName.c_str());
         return;
     }
 
     User user;
-    user.mUserName = userName;
+    user.mUserName = newUserFrame.userName;
     user.mSession = session;
 
-    utils::log("[server] new user created: %s\n", user.mUserName.c_str());
+    memcpy(user.keySign.mKeyPub, newUserFrame.pubSignKey, crypto::kPubKeySignatureByteCount);
+    memcpy(user.keyEncrypt.mKeyPub, newUserFrame.pubEncryptKey, crypto::kPubKeyByteCount);
 
     uint32_t usersCount = 0U;
 
@@ -194,7 +199,11 @@ void SecchatServer::handleNewUser( //
         usersCount = mUsers.size();
     }
 
+    utils::log("[server] new user created: %s, pubsign/pub keys received\n", user.mUserName.c_str());
     utils::log("[server] currently %d users active\n", usersCount);
+
+    // TODO: broadcast the pubsign/pub keys to other users?
+    // TODO: reply with server's pubsign/pub keys (encrypted with users's pub key)
 
     std::string destination;
     destination.assign(frame.getHeader().source.get(), frame.getHeader().sourceSize);
@@ -345,7 +354,7 @@ bool SecchatServer::joinUserToRoom( //
         std::optional<UserId> joinedUser;
         for (const auto &joinedUserIDIt : room->get().mJoinedUsers)
         {
-            // TODO: compare also identity
+            // TODO: verify identity (signature)
             if (joinedUserIDIt == user.id)
             {
                 joinedUser = joinedUserIDIt;

@@ -40,6 +40,25 @@ void Proto::populatePayload( //
     memcpy(frame.payload.payload.get(), payload, payloadSize);
 }
 
+void Proto::populatePayloadNewUser( //
+    Proto::Frame &frame,
+    const std::string &userName,
+    const crypto::KeyAsymSignature &keySign,
+    const crypto::KeyAsym &key)
+{
+    PayloadNewUser payloadNewUser;
+    payloadNewUser.userName = userName;
+
+    memcpy(payloadNewUser.pubSignKey, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
+    memcpy(payloadNewUser.pubEncryptKey, key.mKeyPub, crypto::kPubKeyByteCount);
+
+    auto buffer = serializeNewUser(payloadNewUser);
+
+    frame.payload.type = PayloadType::kNewUser;
+    frame.payload.payload = std::move(buffer.data);
+    frame.payload.size = buffer.dataSize;
+}
+
 std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
 {
     auto retBuf = std::unique_ptr<uint8_t[]>(new uint8_t[frame.getSize()]);
@@ -130,6 +149,69 @@ std::vector<Proto::Frame> Proto::deserialize( //
     }
 
     return allFrames;
+}
+
+utils::ByteArray Proto::serializeNewUser( //
+    const Proto::PayloadNewUser &payload)
+{
+    constexpr uint32_t usernameSizeSize = sizeof(uint32_t);
+    const uint32_t userNameSize = payload.userName.size();
+
+    // TODO: send: usernameSize,userName,publicKeySign,publicKeyEncrypt
+    const uint32_t totalSize =              //
+        usernameSizeSize +                  //
+        userNameSize +                      //
+        crypto::kPubKeySignatureByteCount + //
+        crypto::kPubKeyByteCount;           //
+
+    std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(totalSize);
+    uint8_t *bufferPtr = buffer.get();
+
+    std::memcpy(bufferPtr, &userNameSize, usernameSizeSize);
+    bufferPtr += usernameSizeSize;
+
+    std::memcpy(bufferPtr, payload.userName.c_str(), userNameSize);
+    bufferPtr += userNameSize;
+
+    std::memcpy(bufferPtr, payload.pubSignKey, crypto::kPubKeySignatureByteCount);
+    bufferPtr += crypto::kPubKeySignatureByteCount;
+
+    std::memcpy(bufferPtr, payload.pubEncryptKey, crypto::kPubKeyByteCount);
+
+    utils::ByteArray ba;
+    ba.data = std::move(buffer);
+    ba.dataSize = totalSize;
+
+    return ba;
+}
+
+Proto::PayloadNewUser Proto::deserializeNewUser( //
+    const uint8_t *const buffer,
+    const uint32_t /*bufferSize*/)
+{
+    // TODO: check bufferSize
+
+    PayloadNewUser payload;
+
+    const uint8_t *bufferPtr = buffer;
+
+    uint32_t userNameSize = 0U;
+    std::memcpy(&userNameSize, bufferPtr, sizeof(uint32_t));
+    bufferPtr += sizeof(uint32_t);
+
+    std::string userName;
+    userName.assign((char *)bufferPtr, userNameSize);
+
+    payload.userName = userName;
+
+    bufferPtr += userNameSize;
+
+    std::memcpy(payload.pubSignKey, bufferPtr, crypto::kPubKeySignatureByteCount);
+    bufferPtr += crypto::kPubKeySignatureByteCount;
+
+    std::memcpy(payload.pubEncryptKey, bufferPtr, crypto::kPubKeyByteCount);
+
+    return payload;
 }
 
 Proto::Frame::Frame( //

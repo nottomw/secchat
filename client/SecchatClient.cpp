@@ -16,12 +16,25 @@ SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
     {
         ui::print("Crypto init failed\n");
     }
+
+    ui::print("[client] -- crypto keys start --\n");
+    ui::print("[client] crypto: generatic signing key pair: pub, priv\n");
+    mKeyMyAsym = crypto::keygenAsym();
+
+    ui::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
+    ui::printCharactersHex(mKeyMyAsym.mKeyPriv, crypto::kPrivKeyByteCount);
+
+    ui::print("[client] crypto: generatic encrypting key pair\n");
+    mKeyMyAsymSign = crypto::keygenAsymSign();
+
+    ui::printCharactersHex(mKeyMyAsymSign.mKeyPub, crypto::kPubKeySignatureByteCount);
+    ui::printCharactersHex(mKeyMyAsymSign.mKeyPriv, crypto::kPrivKeySignatureByteCount);
+
+    ui::print("[client] -- crypto keys end --\n");
 }
 
 void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t port)
 {
-    mTransport.connect(ipAddr, port);
-
     mTransport.onDisconnect( //
         [](std::weak_ptr<Session> /*sess*/) {
             // For client there should be only a single session (to server),
@@ -35,6 +48,8 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
             // TODO: the disconnect should probably trigger server connection retry,
             // now it will just print message and exit...
         });
+
+    mTransport.connect(ipAddr, port);
 
     mChatReader = std::thread{[&]() { //
         while (mReaderShouldRun)
@@ -95,6 +110,7 @@ bool SecchatClient::sendMessage(const std::string &roomName, const std::string &
 
     Proto::populateHeader(frame, mMyUserName, roomName);
 
+    // TODO: this message should be signed
     // TODO: this message should be encrypted with sym key
 
     Proto::populatePayload(frame,
@@ -123,7 +139,8 @@ void SecchatClient::handlePacket( //
         {
             case Proto::PayloadType::kNewUserIdAssigned:
                 {
-                    // TODO: client should wait until this user id is assigned
+                    // TODO: client should receive server's public key here?
+                    // TODO: client should wait until this user id is assigned - need mechanism for waiting
                     ui::print("[client] user ID assigned by server: ");
                     ui::printCharacters(payload.payload.get(), payload.size);
                 }
@@ -148,7 +165,7 @@ void SecchatClient::handlePacket( //
 
 void SecchatClient::serverNewUserAnnounce()
 {
-    const std::string dest{"testdestserver"};
+    const std::string dest{"server"};
 
     Proto::Frame frame{// ugly casts...
                        (uint32_t)mMyUserName.size(),
@@ -157,11 +174,10 @@ void SecchatClient::serverNewUserAnnounce()
 
     Proto::populateHeader(frame, mMyUserName, dest);
 
-    // TODO: this payload should contain user name & public key
-    Proto::populatePayload(frame,
-                           Proto::PayloadType::kNewUser,
-                           (uint8_t *)mMyUserName.c_str(), // ugly cast
-                           mMyUserName.size());
+    Proto::populatePayloadNewUser(frame,
+                                  mMyUserName,
+                                  mKeyMyAsymSign, // ugly cast
+                                  mKeyMyAsym);
 
     std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
     assert(buffer);
@@ -215,6 +231,7 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
     std::string roomName;
     std::string message;
 
+    // TODO: the message signature should be verified
     // TODO: the message should be decrypted with sym key
 
     userName.assign(header.source.get(), header.sourceSize);

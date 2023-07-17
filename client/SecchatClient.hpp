@@ -25,6 +25,8 @@ private:
     std::thread mChatReader;
 
     crypto::KeyAsym mKeyMyAsym;
+    crypto::KeyAsymSignature mKeyMyAsymSign;
+
     crypto::KeySym mKeyChatGroup;
 
     std::string mMyUserName;

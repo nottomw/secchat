@@ -9,4 +9,10 @@ target_include_directories(proto
         ${PROJECT_SOURCE_DIR}/proto
 )
 
+target_link_libraries(proto
+    PRIVATE
+        secchat::crypto
+        secchat::utils
+)
+
 add_library(secchat::proto ALIAS proto)
