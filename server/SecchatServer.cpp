@@ -135,9 +135,6 @@ void SecchatServer::handlePacket( //
     const uint32_t dataLen,
     std::shared_ptr<Session> session)
 {
-
-    // TODO: server should also be able to sign and verify signatures of users
-
     // Track the offset of a specific frame in raw buffer so it can be easily
     // forwarded to clients without another serialization.
     const uint8_t *dataOffset = data;
@@ -152,7 +149,6 @@ void SecchatServer::handlePacket( //
         {
             case Proto::PayloadType::kUserConnect:
                 handleNewUser(framesIt, session);
-                // TODO: broadcast the pubsign/pub keys to other users?
                 break;
 
             case Proto::PayloadType::kJoinChatRoom:
@@ -229,7 +225,7 @@ void SecchatServer::handleNewUser( //
         utils::log("[server] currently %d users active\n", usersCount);
     }
 
-    // TODO: reply with server's pubsign/pub keys (encrypted with users's pub key)
+    // reply with server's pubsign/pub keys (encrypted with users's pub key)
 
     std::string source{"server"};
     std::string destination = newUserFrame.userName;
@@ -281,6 +277,8 @@ void SecchatServer::handleJoinChatRoom( //
     const bool joined = joinUserToRoom(*user, chatRoomName);
     if (joined)
     {
+        // TODO: broadcast the pubsign/pub keys to other users on room join
+
         std::string source{"server"};
 
         Proto::Frame frame;
@@ -372,7 +370,6 @@ bool SecchatServer::joinUserToRoom( //
         std::optional<UserId> joinedUser;
         for (const auto &joinedUserIDIt : room->get().mJoinedUsers)
         {
-            // TODO: verify identity (signature)
             if (joinedUserIDIt == user.id)
             {
                 joinedUser = joinedUserIDIt;
@@ -405,6 +402,8 @@ bool SecchatServer::joinUserToRoom( //
             mRooms.push_back(std::move(newRoom));
         }
 
+        // TODO: new room - request asym key generation immediately
+
         utils::log("[server] new room created, user joined\n");
 
         return true;
@@ -415,8 +414,6 @@ bool SecchatServer::joinUserToRoom( //
 
 std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::string &userName)
 {
-    // User identity verification also needed...
-
     // Maybe should change the vector to map
     {
         std::lock_guard<std::mutex> lk{mUsersMutex};
