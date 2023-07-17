@@ -139,6 +139,53 @@ DecryptedData symDecrypt( //
     return decryptedData;
 }
 
+EncryptedData asymEncrypt( //
+    const KeyAsym &key,
+    const uint8_t *const buffer,
+    const uint32_t bufferSize)
+{
+    const uint32_t encryptedDataSize = crypto_box_SEALBYTES + bufferSize;
+
+    EncryptedData data;
+
+    data.data = std::shared_ptr<uint8_t[]>( //
+        new uint8_t[encryptedDataSize]);
+    data.dataSize = encryptedDataSize;
+
+    const int encryptOk =                //
+        crypto_box_seal(data.data.get(), //
+                        buffer,
+                        bufferSize,
+                        key.mKeyPub);
+    assert(encryptOk == 0);
+
+    return data;
+}
+
+DecryptedData asymDecrypt( //
+    const KeyAsym &key,
+    const uint8_t *const buffer,
+    const uint32_t bufferSize)
+{
+    const uint32_t decryptedDataSize = bufferSize - crypto_box_SEALBYTES;
+
+    DecryptedData data;
+    data.data = std::shared_ptr<uint8_t[]>( //
+        new uint8_t[decryptedDataSize]);
+    data.dataSize = decryptedDataSize;
+
+    const int decryptOk =     //
+        crypto_box_seal_open( //
+            data.data.get(),
+            buffer,
+            bufferSize,
+            key.mKeyPub,
+            key.mKeyPriv);
+    assert(decryptOk == 0);
+
+    return data;
+}
+
 SignedData sign( //
     const KeyAsymSignature &key,
     const uint8_t *const buffer,
@@ -164,6 +211,35 @@ SignedData sign( //
     assert(signedMessageLen == (unsigned long long)signedDataSize);
 
     return signedData;
+}
+
+std::optional<NonsignedData> signedVerify( //
+    const KeyAsymSignature &key,
+    const uint8_t *const buffer,
+    const uint32_t bufferSize)
+{
+    NonsignedData nonsignedData;
+    nonsignedData.data = std::shared_ptr<uint8_t[]>( //
+        new uint8_t[bufferSize]);
+    nonsignedData.dataSize = 0U; // updated later
+
+    unsigned long long nonsignedDataSize = 0U;
+    const int signatureOk = //
+        crypto_sign_open(   //
+            nonsignedData.data.get(),
+            &nonsignedDataSize,
+            buffer,
+            bufferSize,
+            key.mKeyPub);
+    if (signatureOk != 0)
+    {
+        // verification failed
+        return std::nullopt;
+    }
+
+    nonsignedData.dataSize = nonsignedDataSize;
+
+    return nonsignedData;
 }
 
 } // namespace crypto

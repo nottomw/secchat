@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace crypto
 {
@@ -46,7 +47,9 @@ struct DecryptedData
     uint32_t dataSize;
 };
 
+// ...good enough?
 using SignedData = DecryptedData;
+using NonsignedData = DecryptedData; // sketchy
 
 bool init();
 
@@ -86,7 +89,12 @@ DecryptedData asymDecrypt( //
     const uint8_t *const buffer,
     const uint32_t bufferSize);
 
-SignedData asymSign( //
+SignedData sign( //
+    const KeyAsymSignature &key,
+    const uint8_t *const buffer,
+    const uint32_t bufferSize);
+
+std::optional<NonsignedData> signedVerify( //
     const KeyAsymSignature &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize);
