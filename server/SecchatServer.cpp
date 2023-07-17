@@ -177,13 +177,12 @@ void SecchatServer::handleNewUser( //
     const auto existingUser = verifyUserExists(newUserFrame.userName);
     if (existingUser)
     {
-        // TODO: the user should be removed from server if not active for some period of time.
+        // TODO: If this is a existing user, verify the pubsign/pub keys match!!!
+        // TODO: if this is a existing user, and pubkeys OK, reply with connect ack, otherwise drop
+
         // for now just overwriting the session
         User *const user = *existingUser;
         user->mSession = session;
-
-        // TODO: If this is a existing user, verify the pubsign/pub keys match!!!
-        // TODO: if this is a existing user, and pubkeys OK, reply with connect ack, otherwise drop
 
         utils::log("[server] user %s already exists (for now update the session)\n", newUserFrame.userName.c_str());
     }
