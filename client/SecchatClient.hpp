@@ -3,6 +3,7 @@
 #include "Crypto.hpp"
 #include "DataTransport.hpp"
 #include "Proto.hpp"
+#include "WaitQueue.hpp"
 
 #include <condition_variable>
 
@@ -14,7 +15,7 @@ public:
     void connectToServer(const std::string &ipAddr, const uint16_t port);
     void disconnectFromServer();
 
-    void startChat(const std::string &userName);
+    bool startChat(const std::string &userName);
     bool joinRoom(const std::string &roomName);
     bool sendMessage(const std::string &roomName, const std::string &message);
 
@@ -33,15 +34,12 @@ private:
     crypto::KeySym mKeyChatGroup;
 
     std::string mMyUserName;
+
     std::vector<std::string> mJoinedRooms;
 
-    std::mutex mConnectedCondVarMutex;
-    std::condition_variable mConnectedCondVar;
-
-    std::mutex mJoinedCondVarMutex;
-    std::condition_variable mJoinedCondVar;
-
     std::vector<std::string> &mMessageUIScrollback;
+
+    utils::WaitQueue mWaitQueue;
 
     void handlePacket( //
         const uint8_t *const data,

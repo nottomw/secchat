@@ -33,12 +33,20 @@ int main(int argc, char **argv)
 
     SecchatClient client{formattedMessagesToUI};
     client.connectToServer("127.0.0.1", 12345);
-    client.startChat(userName);
+
+    const bool chatStartOk = client.startChat(userName);
+    if (!chatStartOk)
+    {
+        ui::print("[client] timeout on user connect - no ack received from server?\n");
+        ui::stopUserInterface();
+        return 0;
+    }
 
     const bool joined = client.joinRoom(room);
     if (!joined)
     {
         ui::print("[client] could not join room %s\n", room.c_str());
+        ui::stopUserInterface();
         return 0;
     }
 

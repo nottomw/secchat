@@ -65,18 +65,24 @@ void SecchatClient::disconnectFromServer()
     mChatReader.join();
 }
 
-void SecchatClient::startChat(const std::string &userName)
+bool SecchatClient::startChat(const std::string &userName)
 {
     mMyUserName = userName;
 
     userConnect();
 
-    // TODO: std::future wait on specific events
+    std::string userNameCopy = userName;
+    auto fut = mWaitQueue.waitFor( //
+        utils::WaitEventType::kUserConnectAck,
+        std::move(userNameCopy));
 
-    // TODO: Q&D hack
-    // TODO: requires some sequence enforcement mechanism, hacking for now
-    std::unique_lock lk{mConnectedCondVarMutex};
-    mConnectedCondVar.wait(lk, [&] { return true; });
+    auto status = fut.wait_for(std::chrono::seconds(2));
+    if (status != std::future_status::ready)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 bool SecchatClient::joinRoom(const std::string &roomName)
@@ -85,21 +91,14 @@ bool SecchatClient::joinRoom(const std::string &roomName)
 
     serverJoinRoom(roomName);
 
-    // TODO: on join user should be "quarantined" for a couple for seconds, so
-    // the other users won't message anything to unknown user
+    std::string roomNameCopy = roomName;
+    auto fut = mWaitQueue.waitFor(utils::WaitEventType::kUserJoined, std::move(roomNameCopy));
 
-    std::unique_lock lk{mJoinedCondVarMutex};
-    mJoinedCondVar.wait( //
-        lk,
-        [&] { //
-            const auto it = std::find(mJoinedRooms.begin(), mJoinedRooms.end(), roomName);
-            if (it != mJoinedRooms.end())
-            {
-                return true;
-            }
-
-            return false;
-        });
+    auto status = fut.wait_for(std::chrono::seconds(2));
+    if (status != std::future_status::ready)
+    {
+        return false;
+    }
 
     return true;
 }
@@ -196,7 +195,13 @@ void SecchatClient::handleConnectAck(Proto::Frame &frame)
     memcpy(mKeyServerAsymSign.mKeyPub, connAck.pubSignKey, crypto::kPubKeySignatureByteCount);
     memcpy(mKeyServerAsym.mKeyPub, connAck.pubEncryptKey, crypto::kPubKeyByteCount);
 
-    mConnectedCondVar.notify_all();
+    Proto::Header &header = frame.getHeader();
+    const std::string ackedUser{header.destination.get(), header.destinationSize};
+
+    ui::print("[client] wait queue complete post for connect\n");
+    mWaitQueue.complete( //
+        utils::WaitEventType::kUserConnectAck,
+        ackedUser);
 }
 
 void SecchatClient::serverJoinRoom(const std::string &roomName)
@@ -226,12 +231,9 @@ void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
     std::string justJoinedChatRoomName;
     justJoinedChatRoomName.assign((char *)payload.payload.get(), payload.size);
 
-    {
-        std::lock_guard<std::mutex> lk{mJoinedCondVarMutex};
-        mJoinedRooms.push_back(justJoinedChatRoomName);
-    }
+    mJoinedRooms.push_back(justJoinedChatRoomName);
 
-    mJoinedCondVar.notify_all();
+    mWaitQueue.complete(utils::WaitEventType::kUserJoined, justJoinedChatRoomName);
 }
 
 void SecchatClient::handleMessageToRoom(Proto::Frame &frame)

@@ -219,6 +219,9 @@ void SecchatServer::handleJoinChatRoom( //
                userName.c_str(),
                chatRoomName.c_str());
 
+    // TODO: on join user should be "quarantined" for a couple for seconds, so
+    // the other users won't message anything to unknown user
+
     const User *const user = *userOk; // dereference std::optional
     const bool joined = joinUserToRoom(*user, chatRoomName);
     if (joined)
