@@ -68,7 +68,6 @@ void SecchatServer::stop()
 
 SecchatServer::User &SecchatServer::findUserById(const SecchatServer::UserId userId)
 {
-    std::lock_guard<std::mutex> lk{mUsersMutex};
     for (auto &user : mUsers)
     {
         if (user.id == userId)
@@ -165,11 +164,8 @@ void SecchatServer::handleNewUser( //
 
         uint32_t usersCount = 0U;
 
-        {
-            std::lock_guard<std::mutex> lk{mUsersMutex};
-            mUsers.push_back(std::move(user));
-            usersCount = mUsers.size();
-        }
+        mUsers.push_back(std::move(user));
+        usersCount = mUsers.size();
 
         utils::log("[server] new user created: %s, pubsign/pub keys received\n", newUserFrame.userName.c_str());
         utils::log("[server] currently %d users active\n", usersCount);
@@ -275,27 +271,26 @@ void SecchatServer::handleMessageToChatRoom( //
     // probably should drop session
     assert(foundRoom != mRooms.end());
 
+    // send to all users in this chat room
+    for (const auto &userInRoomId : foundRoom->mJoinedUsers)
     {
-        // TODO: this should be readers-writes (or cleanup mutex hell...)
-        std::lock_guard<std::mutex> lk{foundRoom->mRoomMutex};
-
-        // send to all users in this chat room
-        for (const auto &userInRoomId : foundRoom->mJoinedUsers)
+        const User &user = findUserById(userInRoomId);
+        const auto userInRoomSession = user.mSession.lock();
+        if (!userInRoomSession)
         {
-            const User &user = findUserById(userInRoomId);
-            const auto userInRoomSession = user.mSession.lock();
-            assert(userInRoomSession); // should never be invalid ptr unless internal userlist is corrupted
-
-            if (*userInRoomSession == *session)
-            {
-                // If this is the session that we just got the message from,
-                // do not echo unnecessarily back.
-                continue;
-            }
-
-            const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
-            assert(sendOk);
+            // invalid session - will be collected soon
+            continue;
         }
+
+        if (*userInRoomSession == *session)
+        {
+            // If this is the session that we just got the message from,
+            // do not echo unnecessarily back.
+            continue;
+        }
+
+        const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
+        assert(sendOk);
     }
 }
 
@@ -315,8 +310,6 @@ bool SecchatServer::joinUserToRoom( //
 
     if (room)
     {
-        std::lock_guard<std::mutex> lkRoom{room->get().mRoomMutex};
-
         std::optional<UserId> joinedUser;
         for (const auto &joinedUserIDIt : room->get().mJoinedUsers)
         {
@@ -345,7 +338,6 @@ bool SecchatServer::joinUserToRoom( //
         Room newRoom;
 
         {
-            std::lock_guard<std::mutex> lkRoom{newRoom.mRoomMutex};
             newRoom.roomName = roomName;
             newRoom.mJoinedUsers.push_back(user.id);
 
@@ -365,14 +357,11 @@ bool SecchatServer::joinUserToRoom( //
 std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::string &userName)
 {
     // Maybe should change the vector to map
+    for (auto &userIt : mUsers)
     {
-        std::lock_guard<std::mutex> lk{mUsersMutex};
-        for (auto &userIt : mUsers)
+        if (userIt.mUserName == userName)
         {
-            if (userIt.mUserName == userName)
-            {
-                return &userIt;
-            }
+            return &userIt;
         }
     }
 

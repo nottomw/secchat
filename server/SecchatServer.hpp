@@ -42,7 +42,6 @@ private:
         crypto::KeyAsym keyEncrypt;
     };
 
-    std::mutex mUsersMutex;
     std::vector<User> mUsers;
 
     struct Room
@@ -54,8 +53,6 @@ private:
 
         std::string roomName;
         std::vector<UserId> mJoinedUsers;
-
-        std::mutex mRoomMutex;
     };
 
     std::vector<Room> mRooms;
