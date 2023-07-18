@@ -17,6 +17,11 @@ void handleCtrlC(int /*signal*/)
     exit(0); // Terminate the program
 }
 
+void stopUserInterface()
+{
+    // nothing to do
+}
+
 void initialize(std::vector<std::string> &formattedMessagesToUI)
 {
     gPrintInputFormattedMessages = &formattedMessagesToUI;
