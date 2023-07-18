@@ -11,6 +11,7 @@ SecchatServer::SecchatServer()
     if (!crypto::init())
     {
         utils::log("[server] crypto init failed\n");
+        assert(false); // fatal error...
     }
 
     utils::log("[server] -- crypto keys begin --\n");

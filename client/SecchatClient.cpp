@@ -12,9 +12,10 @@ SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
     , mReaderShouldRun{true}
     , mMessageUIScrollback{messageUIScrollback}
 {
-    if (crypto::init())
+    if (!crypto::init())
     {
         ui::print("Crypto init failed\n");
+        assert(false); // fatal error...
     }
 
     ui::print("[client] -- crypto keys begin --\n");
