@@ -2,7 +2,7 @@
 
 #include "Utils.hpp"
 
-uint32_t Session::mGlobalSessionCounter = 0U;
+Session::IdType Session::mGlobalSessionCounter = 0U;
 
 Session::Session(asio::ip::tcp::socket &&s)
     : mRawBuffer{}
@@ -67,7 +67,7 @@ bool Session::isValid() const
     return mValid;
 }
 
-uint32_t Session::getId() const
+Session::IdType Session::getId() const
 {
     return mSessionId;
 }

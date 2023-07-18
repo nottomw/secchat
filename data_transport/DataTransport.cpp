@@ -255,7 +255,6 @@ void DataTransport::invalidatedSessionsCollect()
                 {
                     utils::log("[session collector] removing session: %s\n",
                                session->getSocket().remote_endpoint().address().to_string().c_str());
-                    fflush(stdout);
                     removedSessions += 1U;
 
                     // Calling disconnect handler here can be pretty late, maybe

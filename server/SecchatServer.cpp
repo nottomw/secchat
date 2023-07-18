@@ -34,65 +34,13 @@ void SecchatServer::start(const uint16_t serverPort)
 
     mTransport.onDisconnect( //
         [&](std::weak_ptr<Session> session) {
-            // TODO: this async session/user collection is problematic and
-            // causes mutex hell, maybe this should be transactional (some command queue)
-
-            // garbage collector either run sigle threaded after N loops of
-            // mesg reader or cleanup mutex usage
-
             auto sessPtr = session.lock();
             assert(sessPtr); // this ptr should never be incorrect
 
-            // Remove dropped user from all rooms he joined...
-            for (auto &roomIt : mRooms)
             {
-                std::lock_guard<std::mutex> lkRoom{roomIt.mRoomMutex};
-                auto &joinedUsers = roomIt.mJoinedUsers;
-
-                joinedUsers.erase(  //
-                    std::remove_if( //
-                        joinedUsers.begin(),
-                        joinedUsers.end(),
-                        [&](UserId userId) { //
-                            User &user = findUserById(userId);
-                            auto userSessionPtr = user.mSession.lock();
-                            if (*userSessionPtr == *sessPtr)
-                            {
-                                utils::log("[server] removing user %s from room %s\n", //
-                                           user.mUserName.c_str(),
-                                           roomIt.roomName.c_str());
-
-                                return true; // remove
-                            }
-
-                            return false; // dont remove
-                        }),
-                    joinedUsers.end());
+                std::lock_guard<std::mutex> lk{mSessionsToCollectMutex};
+                mSessionsToCollect.push_back(sessPtr->getId());
             }
-
-            // Remove user...
-            uint32_t userCount = 0U;
-            {
-                std::lock_guard<std::mutex> lk{mUsersMutex};
-                mUsers.erase(                      //
-                    std::remove_if(mUsers.begin(), //
-                                   mUsers.end(),
-                                   [&](User &user) { //
-                                       auto userSessionPtr = user.mSession.lock();
-                                       if (*userSessionPtr == *sessPtr)
-                                       {
-                                           utils::log("[server] removing user %s\n", user.mUserName.c_str());
-                                           return true; // remove
-                                       }
-
-                                       return false; // dont remove
-                                   }),
-                    mUsers.end());
-
-                userCount = mUsers.size();
-            }
-
-            utils::log("[server] currently %d users active\n", userCount);
         });
 
     mChatReader = std::thread{[&]() {
@@ -106,6 +54,8 @@ void SecchatServer::start(const uint16_t serverPort)
             {
                 handlePacket(rawBuf, recvdLen, sessionShared);
             }
+
+            cleanupDisconnectedUsers();
         }
     }};
 }
@@ -427,6 +377,70 @@ std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::
     }
 
     return std::nullopt;
+}
+
+void SecchatServer::cleanupDisconnectedUsers()
+{
+    {
+        std::lock_guard<std::mutex> lk{mSessionsToCollectMutex};
+        if (mSessionsToCollect.size() == 0)
+        {
+            return; // nothing to do
+        }
+
+        for (const auto invalidatedSessionId : mSessionsToCollect)
+        {
+            // Remove dropped user from all rooms he joined...
+            for (auto &roomIt : mRooms)
+            {
+                auto &joinedUsers = roomIt.mJoinedUsers;
+
+                joinedUsers.erase(  //
+                    std::remove_if( //
+                        joinedUsers.begin(),
+                        joinedUsers.end(),
+                        [&](UserId userId) { //
+                            User &user = findUserById(userId);
+                            auto userSessionPtr = user.mSession.lock();
+
+                            if ((!userSessionPtr) || //
+                                (userSessionPtr->getId() == invalidatedSessionId))
+                            {
+                                utils::log("[server] removing user %s from room %s\n", //
+                                           user.mUserName.c_str(),
+                                           roomIt.roomName.c_str());
+
+                                return true; // remove
+                            }
+
+                            return false; // dont remove
+                        }),
+                    joinedUsers.end());
+            }
+
+            // Remove user...
+            mUsers.erase(                      //
+                std::remove_if(mUsers.begin(), //
+                               mUsers.end(),
+                               [&](User &user) { //
+                                   auto userSessionPtr = user.mSession.lock();
+
+                                   if ((!userSessionPtr) || //
+                                       (userSessionPtr->getId() == invalidatedSessionId))
+                                   {
+                                       utils::log("[server] removing user %s\n", user.mUserName.c_str());
+                                       return true; // remove
+                                   }
+
+                                   return false; // dont remove
+                               }),
+                mUsers.end());
+
+            utils::log("[server] currently %d users active\n", mUsers.size());
+        }
+
+        mSessionsToCollect.clear();
+    }
 }
 
 SecchatServer::User::User()

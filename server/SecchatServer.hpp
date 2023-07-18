@@ -60,6 +60,9 @@ private:
 
     std::vector<Room> mRooms;
 
+    std::mutex mSessionsToCollectMutex;
+    std::vector<Session::IdType> mSessionsToCollect;
+
     crypto::KeyAsym mKeyMyAsym;
     crypto::KeyAsymSignature mKeyMyAsymSign;
 
@@ -86,4 +89,6 @@ private:
     bool joinUserToRoom(const User &user, const std::string &roomName);
 
     std::optional<User *> verifyUserExists(const std::string &userName);
+
+    void cleanupDisconnectedUsers();
 };

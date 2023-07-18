@@ -8,6 +8,8 @@
 class Session
 {
 public:
+    using IdType = uint32_t;
+
     Session(asio::ip::tcp::socket &&s);
     Session(Session &&s);
 
@@ -18,7 +20,7 @@ public:
     void invalidate();
     bool isValid() const;
 
-    uint32_t getId() const;
+    IdType getId() const;
 
     bool operator==(const Session &s);
 
@@ -37,8 +39,8 @@ private:
 
     bool mValid;
 
-    static uint32_t mGlobalSessionCounter;
-    uint32_t mSessionId;
+    static IdType mGlobalSessionCounter;
+    IdType mSessionId;
 
     std::mutex mReceivedDataQueueMutex;
     std::deque<ReceivedData> mReceivedDataQueue;
