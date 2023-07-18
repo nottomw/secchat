@@ -14,6 +14,8 @@ namespace ui
 
 void handleCtrlC(int signal);
 
+void stopUserInterface();
+
 // must be called before run
 void initialize(std::vector<std::string> &formattedMessagesToUI);
 

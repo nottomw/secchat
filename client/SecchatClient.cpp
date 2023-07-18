@@ -36,10 +36,7 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
             // For client there should be only a single session (to server),
             // this means we got disconnected and have to handle this...
             ui::print("[client] disconnected from server, closing client...\n");
-
-            // TODO: HACK: pretend we just got ctrl-c'd, otherwise
-            // the curses ui is breaking terminal
-            ui::handleCtrlC(SIGINT);
+            ui::stopUserInterface();
 
             // TODO: the disconnect should probably trigger server connection retry,
             // now it will just print message and exit...

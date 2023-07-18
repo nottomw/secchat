@@ -10,13 +10,19 @@
 namespace ui
 {
 
+std::vector<std::string> *gPrintInputFormattedMessages = nullptr;
+
 void handleCtrlC(int /*signal*/)
 {
     endwin(); // Clean up ncurses
     exit(0);  // Terminate the program
 }
 
-std::vector<std::string> *gPrintInputFormattedMessages = nullptr;
+void stopUserInterface()
+{
+    endwin();
+    exit(0);
+}
 
 static void drawChatWindow( //
     WINDOW *chatWin,
