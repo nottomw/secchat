@@ -156,10 +156,6 @@ std::weak_ptr<Session> DataTransport::receiveBlocking(uint8_t *const buffer,
     constexpr uint64_t kLoopWaitTimeMs = 100U;
     uint64_t totalWaitTime = 0U;
 
-    // TODO: need a way to identify where does the message come from
-    // (some user ID) to be able to send reply only to the user the
-    // message was received from.
-
     while (true)
     {
         const bool timeoutArmed = (timeoutMs != 0U);

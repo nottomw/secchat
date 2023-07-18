@@ -39,8 +39,7 @@ bool runChatUserInterface( //
     std::thread screen{[&] {
         while (screenShouldWork)
         {
-            // TODO: race cond for "formattedMessagesToUI"
-            // needs to be fixed
+            // TODO: race cond for "formattedMessagesToUI", needs to be fixed ASAP
 
             for (const auto &msg : *gPrintInputFormattedMessages)
             {

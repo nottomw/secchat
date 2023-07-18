@@ -92,8 +92,6 @@ void SecchatServer::handlePacket( //
     auto receivedFrames = Proto::deserialize(data, dataLen);
     for (auto &framesIt : receivedFrames)
     {
-        // TODO: would be good to do some buffer/frame size verification here or in deserialization...
-
         Proto::Payload &payload = framesIt.getPayload();
         switch (payload.type)
         {
@@ -271,8 +269,7 @@ void SecchatServer::handleMessageToChatRoom( //
     // TODO: mRooms must be a map...
     auto foundRoom = std::find(mRooms.begin(), mRooms.end(), roomName);
 
-    // TODO: properly handle incorrect room - something strange,
-    // probably should drop session
+    // if room not found probably have to drop session - something strange is happening
     assert(foundRoom != mRooms.end());
 
     // send to all users in this chat room

@@ -21,7 +21,6 @@ public:
 
     void connect(const std::string &ipAddr, const uint16_t port);
 
-    // TODO: all of these sends are very similar - need to extract common part
     bool sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen);
     bool sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen, std::shared_ptr<Session> session);
 

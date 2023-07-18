@@ -13,6 +13,8 @@ namespace crypto
 struct KeyAsym;
 }
 
+// TODO: all of this needs to be thoroughly size-checked
+
 class Proto
 {
 public:
@@ -38,7 +40,7 @@ public:
 
         // ------ ENCRYPTED messages asym, signed asym by sender:
 
-        // TODO: requested user gets a prompt to provide or not the keys
+        // TODO: requested user should get a prompt (yes/no) to confirm he wants to provide the keys
         k$$$ChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users (or chat owner?)
         k$$$ChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user pubkey
 
@@ -56,6 +58,8 @@ public:
         uint64_t protoVersion;
         uint64_t timestampSend; // timestamped when sending
 
+        // TODO: the source & destination should have some "max size" and
+        // the buffer should always be allocated to this max size.
         uint32_t sourceSize;
         std::unique_ptr<char[]> source;
 
@@ -74,6 +78,9 @@ public:
         PayloadType type;
         uint32_t size;
         std::unique_ptr<uint8_t[]> payload;
+
+        // TODO: the payload should have some "max size" and
+        // the buffer should always be allocated to this max size.
 
     private:
         Payload();

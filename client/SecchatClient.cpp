@@ -39,7 +39,7 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
             ui::print("[client] disconnected from server, closing client...\n");
             ui::stopUserInterface();
 
-            // TODO: the disconnect should probably trigger server connection retry,
+            // The disconnect should probably trigger server connection retry,
             // now it will just print message and exit...
         });
 

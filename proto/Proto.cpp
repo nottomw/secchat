@@ -185,7 +185,6 @@ utils::ByteArray Proto::serializeUserConnect( //
     constexpr uint32_t usernameSizeSize = sizeof(uint32_t);
     const uint32_t userNameSize = payload.userName.size();
 
-    // TODO: send: usernameSize,userName,publicKeySign,publicKeyEncrypt
     const uint32_t totalSize =              //
         usernameSizeSize +                  //
         userNameSize +                      //
@@ -217,8 +216,6 @@ Proto::PayloadUserConnect Proto::deserializeUserConnect( //
     const uint8_t *const buffer,
     const uint32_t /*bufferSize*/)
 {
-    // TODO: check bufferSize
-
     PayloadUserConnect payload;
 
     const uint8_t *bufferPtr = buffer;
