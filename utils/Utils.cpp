@@ -49,3 +49,9 @@ std::string utils::formatChatMessage( //
 
     return retStr;
 }
+
+utils::ByteArray::ByteArray(const uint32_t size)
+    : data{std::make_unique<uint8_t[]>(size)}
+    , dataSize{size}
+{
+}

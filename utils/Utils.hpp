@@ -13,6 +13,9 @@ namespace utils
 class ByteArray
 {
 public:
+    ByteArray() = default;
+    ByteArray(const uint32_t size);
+
     std::unique_ptr<uint8_t[]> data;
     uint32_t dataSize;
 };
