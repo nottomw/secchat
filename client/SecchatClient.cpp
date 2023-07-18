@@ -74,6 +74,8 @@ void SecchatClient::startChat(const std::string &userName)
 
     userConnect();
 
+    // TODO: std::future wait on specific events
+
     // TODO: Q&D hack
     // TODO: requires some sequence enforcement mechanism, hacking for now
     std::unique_lock lk{mConnectedCondVarMutex};
@@ -85,6 +87,9 @@ bool SecchatClient::joinRoom(const std::string &roomName)
     ui::print("[client] joining room %s\n", roomName.c_str());
 
     serverJoinRoom(roomName);
+
+    // TODO: on join user should be "quarantined" for a couple for seconds, so
+    // the other users won't message anything to unknown user
 
     std::unique_lock lk{mJoinedCondVarMutex};
     mJoinedCondVar.wait( //

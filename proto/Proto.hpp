@@ -38,7 +38,8 @@ public:
 
         // ------ ENCRYPTED messages asym, signed asym by sender:
 
-        k$$$ChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users
+        // TODO: requested user gets a prompt to provide or not the keys
+        k$$$ChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users (or chat owner?)
         k$$$ChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user pubkey
 
         // ------ ENCRYPTED messages sym, signed asym by sender:

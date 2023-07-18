@@ -30,15 +30,15 @@ void SecchatServer::start(const uint16_t serverPort)
     mTransport.serve(serverPort);
 
     mTransport.onServerConnect( //
-        [&] {
-            utils::log("[server] accepting new connection...\n");
-            fflush(stdout);
-        });
+        [&] { utils::log("[server] accepting new connection...\n"); });
 
     mTransport.onDisconnect( //
         [&](std::weak_ptr<Session> session) {
             // TODO: this async session/user collection is problematic and
             // causes mutex hell, maybe this should be transactional (some command queue)
+
+            // garbage collector either run sigle threaded after N loops of
+            // mesg reader or cleanup mutex usage
 
             auto sessPtr = session.lock();
             assert(sessPtr); // this ptr should never be incorrect
