@@ -2,6 +2,7 @@
 
 add_library(utils
     Utils.cpp
+    WaitQueue.cpp
 )
 
 target_include_directories(utils
