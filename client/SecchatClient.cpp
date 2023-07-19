@@ -270,6 +270,11 @@ void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
     {
         newSymKeyRequested(source, reqAck.roomName);
     }
+    else
+    {
+        // if the room already existed, the client have to request current sym key
+        requestCurrentSymKey();
+    }
 
     mWaitQueue.complete(utils::WaitEventType::kUserJoined, reqAck.roomName);
 }
@@ -285,6 +290,16 @@ void SecchatClient::newSymKeyRequested( //
     mKeyChatGroup = crypto::keygenSym();
 
     mSymmetricEncryptionReady = true;
+}
+
+void SecchatClient::requestCurrentSymKey()
+{
+    // TODO: request current sym key impl !!!
+
+    // Send to server request for current sym group chat key, the message
+    // should be signed/encrypted with client/server keys.
+    // The server then will forward the request and the users public key to
+    // selected chat participants and will return the encrypted sym key to requestor.
 }
 
 void SecchatClient::handleCurrentSymKeyRequest(Proto::Frame &frame)

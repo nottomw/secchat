@@ -38,11 +38,9 @@ public:
         kChatRoomJoined, // from server, acknowledge room join
         kChatRoomLeave,  // from user
 
-        // ------ ENCRYPTED messages asym, signed asym by sender:
-
         // TODO: requested user should get a prompt (yes/no) to confirm he wants to provide the keys
-        k$$$ChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users (or chat owner?)
-        k$$$ChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user pubkey
+        kChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users (or chat owner?)
+        kChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user pubkey
 
         // ------ ENCRYPTED messages sym, signed asym by sender:
 
@@ -52,6 +50,7 @@ public:
         k$$$UserAsymKeyChanged, // send by user - new pubkey, signed with old asym key, encrypted sym
     };
 
+    // Header is never encrypted - sent plain text.
     struct Header
     {
     public:
@@ -59,7 +58,7 @@ public:
         uint64_t timestampSend; // timestamped when sending
 
         // TODO: the source & destination should have some "max size" and
-        // the buffer should always be allocated to this max size.
+        // the buffer should always be allocated to this max size, same for payload.
         uint32_t sourceSize;
         std::unique_ptr<char[]> source;
 
@@ -78,9 +77,6 @@ public:
         PayloadType type;
         uint32_t size;
         std::unique_ptr<uint8_t[]> payload;
-
-        // TODO: the payload should have some "max size" and
-        // the buffer should always be allocated to this max size.
 
     private:
         Payload();
@@ -123,6 +119,7 @@ public:
         uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
     };
 
+    // Very fishy - same frame used for both join request and response
     struct PayloadJoinReqAck
     {
         uint8_t newRoom; // 1 or 0

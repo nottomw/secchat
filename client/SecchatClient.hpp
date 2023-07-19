@@ -56,4 +56,6 @@ private:
     void handleMessageToRoom(Proto::Frame &frame);
 
     void newSymKeyRequested(const std::string &source, const std::string &roomName);
+
+    void requestCurrentSymKey();
 };
