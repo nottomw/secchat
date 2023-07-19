@@ -34,9 +34,9 @@ public:
 
         kNewSymKeyRequest, // from server, request new sym key generation and broadcast to all users
 
-        kJoinChatRoom,   // from user
-        kLeaveChatRoom,  // from user
+        kChatRoomJoin,   // from user
         kChatRoomJoined, // from server, acknowledge room join
+        kChatRoomLeave,  // from user
 
         // ------ ENCRYPTED messages asym, signed asym by sender:
 
@@ -145,6 +145,13 @@ public:
         const crypto::KeyAsymSignature &keySign,
         const crypto::KeyAsym &key,
         const crypto::KeyAsym &payloadEncryptionKey);
+
+    static void populatePayloadChatRoomJoinOrAck( //
+        Frame &frame,
+        const std::string &roomName,
+        const crypto::KeyAsymSignature &payloadSignKey,
+        const crypto::KeyAsym &payloadEncryptKey,
+        const bool isJoinAck = false);
 
     static std::unique_ptr<uint8_t[]> serialize( //
         const Frame &frame);

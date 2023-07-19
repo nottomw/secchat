@@ -94,7 +94,6 @@ bool SecchatClient::joinRoom(const std::string &roomName)
 
     std::string roomNameCopy = roomName;
     auto fut = mWaitQueue.waitFor(utils::WaitEventType::kUserJoined, std::move(roomNameCopy));
-
     auto status = fut.wait_for(std::chrono::seconds(2));
     if (status != std::future_status::ready)
     {
@@ -155,7 +154,7 @@ void SecchatClient::handlePacket( //
             default:
                 ui::print("[server] received incorrect frame, drop: [");
                 ui::printCharactersHex(data, dataLen, '\0');
-                ui::print(" ]\n");
+                ui::print("]\n");
                 break;
         }
     }
@@ -199,25 +198,20 @@ void SecchatClient::handleConnectAck(Proto::Frame &frame)
     Proto::Header &header = frame.getHeader();
     const std::string ackedUser{header.destination.get(), header.destinationSize};
 
-    ui::print("[client] wait queue complete post for connect\n");
-    mWaitQueue.complete( //
-        utils::WaitEventType::kUserConnectAck,
-        ackedUser);
+    mWaitQueue.complete(utils::WaitEventType::kUserConnectAck, ackedUser);
 }
 
 void SecchatClient::serverJoinRoom(const std::string &roomName)
 {
     Proto::Frame frame;
 
-    Proto::populateHeader(frame, mMyUserName, roomName);
+    Proto::populateHeader(frame, mMyUserName, "server");
 
-    // TODO: this join could be now encrypted with server's public key, and
-    // should be definitely signed with client's key
-
-    Proto::populatePayload(frame,
-                           Proto::PayloadType::kJoinChatRoom,
-                           (uint8_t *)roomName.c_str(), // ugly cast
-                           roomName.size());
+    Proto::populatePayloadChatRoomJoinOrAck( //
+        frame,
+        roomName,
+        mKeyMyAsymSign,
+        mKeyServerAsym);
 
     std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
     assert(buffer);
@@ -227,11 +221,28 @@ void SecchatClient::serverJoinRoom(const std::string &roomName)
 
 void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
 {
+    Proto::Header &header = frame.getHeader();
     Proto::Payload &payload = frame.getPayload();
 
-    std::string justJoinedChatRoomName;
-    justJoinedChatRoomName.assign((char *)payload.payload.get(), payload.size);
+    const std::string source{(char *)header.source.get(), header.sourceSize};
 
+    auto decrypted = crypto::asymDecrypt( //
+        mKeyMyAsym,
+        payload.payload.get(),
+        payload.size);
+    // TODO: there should be a option to check if decryption OK
+
+    auto nonsignedData = crypto::signedVerify( //
+        mKeyServerAsymSign,
+        decrypted.data.get(),
+        decrypted.dataSize);
+    if (!nonsignedData)
+    {
+        utils::log("[client] signature verification failed, source: %s\n", source.c_str());
+        return;
+    }
+
+    const std::string justJoinedChatRoomName{(char *)nonsignedData->data.get(), nonsignedData->dataSize};
     mJoinedRooms.push_back(justJoinedChatRoomName);
 
     mWaitQueue.complete(utils::WaitEventType::kUserJoined, justJoinedChatRoomName);

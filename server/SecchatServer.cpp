@@ -99,7 +99,7 @@ void SecchatServer::handlePacket( //
                 handleNewUser(framesIt, session);
                 break;
 
-            case Proto::PayloadType::kJoinChatRoom:
+            case Proto::PayloadType::kChatRoomJoin:
                 handleJoinChatRoom(framesIt, session);
                 break;
 
@@ -198,51 +198,68 @@ void SecchatServer::handleJoinChatRoom( //
     Proto::Header &header = frame.getHeader();
     Proto::Payload &payload = frame.getPayload();
 
-    std::string userName;
-    userName.assign((char *)header.source.get(), header.sourceSize);
-
-    std::string chatRoomName;
-    chatRoomName.assign((char *)payload.payload.get(), payload.size);
+    const std::string userName{(char *)header.source.get(), header.sourceSize};
 
     // Find if the user exists
     auto userOk = verifyUserExists(userName);
     if (!userOk)
     {
-        utils::log("[server] user %s requested to join room %s, but user not registered yet, DROP\n", //
-                   userName.c_str(),
-                   chatRoomName.c_str());
+        utils::log("[server] user %s requested to join some room, but user not registered yet, DROP\n", //
+                   userName.c_str());
         return;
     }
+
+    const User *const userHandle = *userOk; // dereference std::optional
+
+    // Decrypt
+    auto decrypted = crypto::asymDecrypt( //
+        mKeyMyAsym,
+        payload.payload.get(),
+        payload.size);
+    // TODO: there should be a option to check if decryption OK
+
+    // Verify signature
+    auto nonsignedData = crypto::signedVerify( //
+        userHandle->keySign,
+        decrypted.data.get(),
+        decrypted.dataSize);
+    if (!nonsignedData)
+    {
+        utils::log("[server] signature verification failed, source: %s\n", userName.c_str());
+        return;
+    }
+
+    const std::string chatRoomName{(char *)nonsignedData->data.get(), nonsignedData->dataSize};
 
     utils::log("[server] chatroom join requested from user %s, room name: %s\n", //
                userName.c_str(),
                chatRoomName.c_str());
 
-    // TODO: on join user should be "quarantined" for a couple for seconds, so
-    // the other users won't message anything to unknown user
+    // TODO: quarantine: on join user should be "quarantined" for a couple of
+    // seconds, so the other users won't message anything to unknown user
 
-    const User *const user = *userOk; // dereference std::optional
-    const bool joined = joinUserToRoom(*user, chatRoomName);
+    const bool joined = joinUserToRoom(*userHandle, chatRoomName);
     if (joined)
     {
-        // TODO: broadcast the pubsign/pub keys to other users on room join
-
         std::string source{"server"};
 
         Proto::Frame frame;
 
         Proto::populateHeader(frame, source, userName);
 
-        Proto::populatePayload( //
+        Proto::populatePayloadChatRoomJoinOrAck( //
             frame,
-            Proto::PayloadType::kChatRoomJoined,
-            payload.payload.get(), // chat room name
-            payload.size);
+            chatRoomName,
+            mKeyMyAsymSign,
+            userHandle->keyEncrypt,
+            true);
 
         auto rawFrame = Proto::serialize(frame);
 
         const bool sendOk = mTransport.sendBlocking(rawFrame.get(), frame.getSize(), session);
         assert(sendOk);
+
+        // TODO: broadcast the pubsign/pub keys to other users on room join
     }
 }
 

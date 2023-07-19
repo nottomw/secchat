@@ -69,7 +69,8 @@ void Proto::populatePayloadUserConnectAck( //
     const crypto::KeyAsym &key,
     const crypto::KeyAsym &payloadEncryptionKey)
 {
-    const uint32_t payloadSize = crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
+    const uint32_t payloadSize = //
+        crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
 
     auto tmpBuffer = std::make_unique<uint8_t[]>(payloadSize);
 
@@ -85,6 +86,30 @@ void Proto::populatePayloadUserConnectAck( //
     frame.payload.type = PayloadType::kUserConnectAck;
     frame.payload.payload = std::move(encrypted.data);
     frame.payload.size = encrypted.dataSize;
+}
+
+void Proto::populatePayloadChatRoomJoinOrAck( //
+    Proto::Frame &frame,
+    const std::string &roomName,
+    const crypto::KeyAsymSignature &payloadSignKey,
+    const crypto::KeyAsym &payloadEncryptKey,
+    const bool isJoinAck)
+{
+    crypto::SignedData signedData = //
+        crypto::sign(               //
+            payloadSignKey,
+            (uint8_t *)roomName.c_str(),
+            roomName.size());
+
+    crypto::EncryptedData encryptedData =      //
+        crypto::asymEncrypt(payloadEncryptKey, //
+                            signedData.data.get(),
+                            signedData.dataSize);
+
+    Payload &pay = frame.getPayload();
+    pay.type = isJoinAck ? PayloadType::kChatRoomJoined : PayloadType::kChatRoomJoin;
+    pay.payload = std::move(encryptedData.data);
+    pay.size = encryptedData.dataSize;
 }
 
 std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)

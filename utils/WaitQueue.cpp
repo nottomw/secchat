@@ -29,7 +29,6 @@ void WaitQueue::complete( //
     ByteArray &&responseMetadata)
 {
     {
-        // pretty hardcore but good enough for now
         std::unique_lock<std::mutex> lk{mWaitObjectsMutex};
 
         for (auto waitObjIt = mWaitObjects.begin(); //
