@@ -100,6 +100,8 @@ bool SecchatClient::joinRoom(const std::string &roomName)
         return false;
     }
 
+    ui::print("[client] joined room %s\n", roomName.c_str());
+
     return true;
 }
 

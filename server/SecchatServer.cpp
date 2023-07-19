@@ -211,14 +211,12 @@ void SecchatServer::handleJoinChatRoom( //
 
     const User *const userHandle = *userOk; // dereference std::optional
 
-    // Decrypt
     auto decrypted = crypto::asymDecrypt( //
         mKeyMyAsym,
         payload.payload.get(),
         payload.size);
     // TODO: there should be a option to check if decryption OK
 
-    // Verify signature
     auto nonsignedData = crypto::signedVerify( //
         userHandle->keySign,
         decrypted.data.get(),
