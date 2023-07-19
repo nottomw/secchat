@@ -14,6 +14,7 @@ class ByteArray
 public:
     ByteArray() = default;
     ByteArray(const uint32_t size);
+    ByteArray(const uint8_t *const newData, const uint32_t newSize);
 
     std::unique_ptr<uint8_t[]> data;
     uint32_t dataSize;

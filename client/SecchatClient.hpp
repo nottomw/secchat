@@ -31,6 +31,8 @@ private:
     crypto::KeyAsym mKeyServerAsym;
     crypto::KeyAsymSignature mKeyServerAsymSign;
 
+    // TODO: should be bound to a specific room
+    bool mSymmetricEncryptionReady;
     crypto::KeySym mKeyChatGroup;
 
     std::string mMyUserName;
@@ -50,5 +52,8 @@ private:
     void handleConnectAck(Proto::Frame &frame);
     void serverJoinRoom(const std::string &roomName);
     void handleChatRoomJoined(Proto::Frame &frame);
+    void handleCurrentSymKeyRequest(Proto::Frame &frame);
     void handleMessageToRoom(Proto::Frame &frame);
+
+    void newSymKeyRequested(const std::string &source, const std::string &roomName);
 };

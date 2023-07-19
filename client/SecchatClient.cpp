@@ -10,6 +10,7 @@
 SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
     : mTransport{}
     , mReaderShouldRun{true}
+    , mSymmetricEncryptionReady{false}
     , mMessageUIScrollback{messageUIScrollback}
 {
     if (!crypto::init())
@@ -107,20 +108,36 @@ bool SecchatClient::joinRoom(const std::string &roomName)
 
 bool SecchatClient::sendMessage(const std::string &roomName, const std::string &message)
 {
+    if (mSymmetricEncryptionReady == false)
+    {
+        ui::print("[client] symmetric encryption not established yet, dropping message %s\n", message.c_str());
+        return false;
+    }
+
     Proto::Frame frame;
 
     Proto::populateHeader(frame, mMyUserName, roomName);
 
-    // TODO: there should be some kind of enforcement on when a sendMessage() can be
-    // sent, this should be done only when full symmetric encryption is available
+    // TODO: in this case should the data really be signed? This requires
+    // for all users to know pub key of each other user in room.
 
-    // TODO: this message should be signed
-    // TODO: this message should be encrypted with sym key
+    const uint32_t messageSize = message.size() - 1; // -1 for '\0'
+    crypto::SignedData signedData =                  //
+        crypto::sign(                                //
+            mKeyMyAsymSign,
+            (uint8_t *)message.c_str(),
+            messageSize);
 
-    Proto::populatePayload(frame,
-                           Proto::PayloadType::k$$$MessageToRoom,
-                           (uint8_t *)message.c_str(), // ugly cast
-                           message.size());
+    crypto::EncryptedData encryptedData = //
+        crypto::symEncrypt(mKeyChatGroup, //
+                           signedData.data.get(),
+                           signedData.dataSize);
+
+    Proto::populatePayload( //
+        frame,
+        Proto::PayloadType::k$$$MessageToRoom,
+        encryptedData.data.get(),
+        encryptedData.dataSize);
 
     std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
     assert(buffer);
@@ -240,14 +257,50 @@ void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
         decrypted.dataSize);
     if (!nonsignedData)
     {
-        utils::log("[client] signature verification failed, source: %s\n", source.c_str());
+        ui::print("[client] signature verification failed, source: %s\n", source.c_str());
         return;
     }
 
-    const std::string justJoinedChatRoomName{(char *)nonsignedData->data.get(), nonsignedData->dataSize};
-    mJoinedRooms.push_back(justJoinedChatRoomName);
+    Proto::PayloadJoinReqAck reqAck = //
+        Proto::deserializeJoinReqAck(nonsignedData->data.get(), nonsignedData->dataSize);
 
-    mWaitQueue.complete(utils::WaitEventType::kUserJoined, justJoinedChatRoomName);
+    mJoinedRooms.push_back(reqAck.roomName);
+
+    if (reqAck.newRoom)
+    {
+        newSymKeyRequested(source, reqAck.roomName);
+    }
+
+    mWaitQueue.complete(utils::WaitEventType::kUserJoined, reqAck.roomName);
+}
+
+void SecchatClient::newSymKeyRequested( //
+    const std::string &source,
+    const std::string &roomName)
+{
+    ui::print("[client] %s requested new symmetric key generation for room %s\n", //
+              source.c_str(),
+              roomName.c_str());
+
+    mKeyChatGroup = crypto::keygenSym();
+
+    mSymmetricEncryptionReady = true;
+}
+
+void SecchatClient::handleCurrentSymKeyRequest(Proto::Frame &frame)
+{
+    //    Proto::Frame symKeyFrame;
+    //    Proto::populateHeader(symKeyFrame, mMyUserName, roomName);
+    //    Proto::populatePayloadChatGroupSymKeyResponse( //
+    //        symKeyFrame,
+    //        mKeyChatGroup,
+    //        mKeyMyAsymSign,
+    //        mKeyMyAsym);
+
+    //    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
+    //    assert(buffer);
+
+    //    mTransport.sendBlocking(buffer.get(), frame.getSize());
 }
 
 void SecchatClient::handleMessageToRoom(Proto::Frame &frame)

@@ -93,8 +93,57 @@ void Proto::populatePayloadChatRoomJoinOrAck( //
     const std::string &roomName,
     const crypto::KeyAsymSignature &payloadSignKey,
     const crypto::KeyAsym &payloadEncryptKey,
-    const bool isJoinAck)
+    const bool isJoinAck,
+    const bool newRoomCreated)
 {
+    //    const bool joinAckNewRoom = newRoomCreated && isJoinAck;
+    //    const bool joinAckOldRoom = newRoomCreated && !isJoinAck;
+    //    const bool joinReq = !newRoomCreated && !isJoinAck;
+    //    assert(joinAckNewRoom || joinAckOldRoom || joinReq);
+
+    PayloadJoinReqAck join;
+    join.newRoom = newRoomCreated;
+    join.roomNameSize = roomName.size();
+    join.roomName = roomName;
+
+    utils::ByteArray joinSerialized = serializeJoinReqAck(join);
+
+    crypto::SignedData signedData = //
+        crypto::sign(               //
+            payloadSignKey,
+            joinSerialized.data.get(),
+            joinSerialized.dataSize);
+
+    crypto::EncryptedData encryptedData =      //
+        crypto::asymEncrypt(payloadEncryptKey, //
+                            signedData.data.get(),
+                            signedData.dataSize);
+
+    Payload &pay = frame.getPayload();
+
+    if (isJoinAck)
+    {
+        pay.type = PayloadType::kChatRoomJoined;
+    }
+    else
+    {
+        pay.type = PayloadType::kChatRoomJoin;
+    }
+
+    pay.payload = std::move(encryptedData.data);
+    pay.size = encryptedData.dataSize;
+}
+
+void Proto::populatePayloadNewSymKeyRequest( //
+    Proto::Frame &frame,
+    const std::string &roomName,
+    const crypto::KeyAsymSignature &payloadSignKey,
+    const crypto::KeyAsym &payloadEncryptKey)
+{
+    Proto::Payload &pay = frame.getPayload();
+
+    pay.type = PayloadType::kNewSymKeyRequest;
+
     crypto::SignedData signedData = //
         crypto::sign(               //
             payloadSignKey,
@@ -106,10 +155,18 @@ void Proto::populatePayloadChatRoomJoinOrAck( //
                             signedData.data.get(),
                             signedData.dataSize);
 
-    Payload &pay = frame.getPayload();
-    pay.type = isJoinAck ? PayloadType::kChatRoomJoined : PayloadType::kChatRoomJoin;
     pay.payload = std::move(encryptedData.data);
     pay.size = encryptedData.dataSize;
+}
+
+void Proto::populatePayloadChatGroupSymKeyResponse( //
+    Proto::Frame &frame,
+    const crypto::KeySym &chatGroupSymKey,
+    const crypto::KeyAsymSignature &payloadSignKey,
+    const crypto::KeyAsym &payloadEncryptKey)
+{
+    //    Proto::Payload &pay = frame.getPayload();
+    //    pay.type = PayloadType::k$$$ChatGroupSymKeyResponse;
 }
 
 std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
@@ -276,6 +333,48 @@ Proto::PayloadUserConnectAck Proto::deserializeUserConnectAck( //
     memcpy(ack.pubEncryptKey, buffer + crypto::kPubKeySignatureByteCount, crypto::kPubKeyByteCount);
 
     return ack;
+}
+
+utils::ByteArray Proto::serializeJoinReqAck(const Proto::PayloadJoinReqAck &payload)
+{
+    const uint32_t roomNameSize = payload.roomName.size();
+    const uint32_t paySize =                      //
+        sizeof(PayloadJoinReqAck::newRoom) +      //
+        sizeof(PayloadJoinReqAck::roomNameSize) + //
+        roomNameSize;
+
+    utils::ByteArray ba{paySize};
+    uint8_t *bufPtr = ba.data.get();
+
+    memcpy(bufPtr, &payload.newRoom, sizeof(PayloadJoinReqAck::newRoom));
+    bufPtr += sizeof(PayloadJoinReqAck::newRoom);
+
+    memcpy(bufPtr, &roomNameSize, sizeof(PayloadJoinReqAck::roomNameSize));
+    bufPtr += sizeof(PayloadJoinReqAck::roomNameSize);
+
+    memcpy(bufPtr, payload.roomName.c_str(), roomNameSize);
+
+    return ba;
+}
+
+Proto::PayloadJoinReqAck Proto::deserializeJoinReqAck( //
+    const uint8_t *const buffer,
+    const uint32_t /*bufferSize*/)
+{
+    Proto::PayloadJoinReqAck payload;
+
+    const uint8_t *bufPtr = buffer;
+
+    memcpy(&payload.newRoom, bufPtr, sizeof(PayloadJoinReqAck::newRoom));
+    bufPtr += sizeof(PayloadJoinReqAck::newRoom);
+
+    uint32_t roomNameSize;
+    memcpy(&roomNameSize, bufPtr, sizeof(PayloadJoinReqAck::roomNameSize));
+    bufPtr += sizeof(PayloadJoinReqAck::roomNameSize);
+
+    payload.roomName.assign((char *)bufPtr, roomNameSize);
+
+    return payload;
 }
 
 uint32_t Proto::Frame::getSize() const

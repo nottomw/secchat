@@ -209,7 +209,7 @@ void SecchatServer::handleJoinChatRoom( //
         return;
     }
 
-    const User *const userHandle = *userOk; // dereference std::optional
+    User *const userHandle = *userOk; // dereference std::optional
 
     auto decrypted = crypto::asymDecrypt( //
         mKeyMyAsym,
@@ -217,40 +217,50 @@ void SecchatServer::handleJoinChatRoom( //
         payload.size);
     // TODO: there should be a option to check if decryption OK
 
-    auto nonsignedData = crypto::signedVerify( //
+    auto nonsignedDataOpt = crypto::signedVerify( //
         userHandle->keySign,
         decrypted.data.get(),
         decrypted.dataSize);
-    if (!nonsignedData)
+    if (!nonsignedDataOpt)
     {
         utils::log("[server] signature verification failed, source: %s\n", userName.c_str());
         return;
     }
 
-    const std::string chatRoomName{(char *)nonsignedData->data.get(), nonsignedData->dataSize};
+    crypto::NonsignedData &nonsignedData = *nonsignedDataOpt;
+
+    Proto::PayloadJoinReqAck join = //
+        Proto::deserializeJoinReqAck(nonsignedData.data.get(), nonsignedData.dataSize);
 
     utils::log("[server] chatroom join requested from user %s, room name: %s\n", //
                userName.c_str(),
-               chatRoomName.c_str());
+               join.roomName.c_str());
 
     // TODO: quarantine: on join user should be "quarantined" for a couple of
     // seconds, so the other users won't message anything to unknown user
 
-    const bool joined = joinUserToRoom(*userHandle, chatRoomName);
+    bool newRoomCreated = false;
+    const bool joined = joinUserToRoom(*userHandle, join.roomName, newRoomCreated);
     if (joined)
     {
         std::string source{"server"};
 
+        // if new room creation - request sym key generate too
+        if (newRoomCreated)
+        {
+            utils::log("[server] new room created, requesting sym key generation from user %s\n", //
+                       userName.c_str());
+        }
+
         Proto::Frame frame;
-
         Proto::populateHeader(frame, source, userName);
-
         Proto::populatePayloadChatRoomJoinOrAck( //
             frame,
-            chatRoomName,
+            join.roomName,
             mKeyMyAsymSign,
             userHandle->keyEncrypt,
-            true);
+            true,
+            newRoomCreated);
 
         auto rawFrame = Proto::serialize(frame);
 
@@ -271,15 +281,14 @@ void SecchatServer::handleMessageToChatRoom( //
 
     std::string userName;
     std::string roomName;
-    std::string message;
 
     userName.assign(header.source.get(), header.sourceSize);
     roomName.assign(header.destination.get(), header.destinationSize);
-    message.assign((char *)payload.payload.get(), payload.size);
 
-    const std::string chatMsgFormatted = utils::formatChatMessage(roomName, userName, message);
-
-    utils::log("[server] RX MSG: %s\n", chatMsgFormatted.c_str());
+    utils::log("[server] RX MSG: [%s]<%s>:\n", //
+               roomName.c_str(),
+               userName.c_str());
+    utils::printCharacters(payload.payload.get(), payload.size);
 
     // TODO: mRooms must be a map...
     auto foundRoom = std::find(mRooms.begin(), mRooms.end(), roomName);
@@ -305,15 +314,20 @@ void SecchatServer::handleMessageToChatRoom( //
             continue;
         }
 
+        // TODO: should modify the "destination" in header here
+
         const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
         assert(sendOk);
     }
 }
 
 bool SecchatServer::joinUserToRoom( //
-    const SecchatServer::User &user,
-    const std::string &roomName)
+    SecchatServer::User &user,
+    const std::string &roomName,
+    bool &newRoomCreated)
 {
+    newRoomCreated = false;
+
     std::optional<std::reference_wrapper<Room>> room;
     for (auto &roomIt : mRooms)
     {
@@ -360,9 +374,7 @@ bool SecchatServer::joinUserToRoom( //
             mRooms.push_back(std::move(newRoom));
         }
 
-        // TODO: new room - request asym key generation immediately
-
-        utils::log("[server] new room created, user joined\n");
+        newRoomCreated = true;
 
         return true;
     }
@@ -382,6 +394,33 @@ std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::
     }
 
     return std::nullopt;
+}
+
+bool SecchatServer::requestNewSymKeyFromUser( //
+    const std::string &roomName,
+    SecchatServer::User &userHandle)
+{
+    Proto::Frame frame;
+    Proto::populateHeader(frame, "server", roomName);
+
+    Proto::populatePayloadNewSymKeyRequest( //
+        frame,
+        roomName,
+        mKeyMyAsymSign,
+        userHandle.keyEncrypt);
+
+    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
+    assert(buffer);
+
+    // TODO: weak & shared confusion
+    std::shared_ptr<Session> sharedSession{userHandle.mSession};
+    const bool sendOk =          //
+        mTransport.sendBlocking( //
+            buffer.get(),
+            frame.getSize(),
+            sharedSession);
+
+    return sendOk;
 }
 
 void SecchatServer::cleanupDisconnectedUsers()

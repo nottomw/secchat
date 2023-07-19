@@ -83,9 +83,17 @@ private:
         std::shared_ptr<Session> session,
         const uint8_t *const rawBuffer);
 
-    bool joinUserToRoom(const User &user, const std::string &roomName);
+    // for now "newRoomCreated", should be something nicer
+    bool joinUserToRoom( //
+        User &user,
+        const std::string &roomName,
+        bool &newRoomCreated);
 
     std::optional<User *> verifyUserExists(const std::string &userName);
+
+    bool requestNewSymKeyFromUser( //
+        const std::string &roomName,
+        SecchatServer::User &userHandle);
 
     void cleanupDisconnectedUsers();
 };

@@ -1,6 +1,7 @@
 #include "Utils.hpp"
 
 #include <cstdio>
+#include <cstring>
 
 void utils::printCharacters( //
     const uint8_t *const buffer,
@@ -54,4 +55,13 @@ utils::ByteArray::ByteArray(const uint32_t size)
     : data{std::make_unique<uint8_t[]>(size)}
     , dataSize{size}
 {
+}
+
+utils::ByteArray::ByteArray( //
+    const uint8_t *const newData,
+    const uint32_t newSize)
+    : data{std::make_unique<uint8_t[]>(newSize)}
+    , dataSize{newSize}
+{
+    memcpy(data.get(), newData, newSize);
 }

@@ -123,6 +123,13 @@ public:
         uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
     };
 
+    struct PayloadJoinReqAck
+    {
+        uint8_t newRoom; // 1 or 0
+        uint32_t roomNameSize;
+        std::string roomName;
+    };
+
     static void populateHeader( //
         Frame &frame,
         const std::string &source,
@@ -151,7 +158,20 @@ public:
         const std::string &roomName,
         const crypto::KeyAsymSignature &payloadSignKey,
         const crypto::KeyAsym &payloadEncryptKey,
-        const bool isJoinAck = false);
+        const bool isJoinAck = false,
+        const bool newRoomCreated = false);
+
+    static void populatePayloadNewSymKeyRequest( //
+        Proto::Frame &frame,
+        const std::string &roomName,
+        const crypto::KeyAsymSignature &payloadSignKey,
+        const crypto::KeyAsym &payloadEncryptKey);
+
+    static void populatePayloadChatGroupSymKeyResponse( //
+        Proto::Frame &frame,
+        const crypto::KeySym &chatGroupSymKey,
+        const crypto::KeyAsymSignature &payloadSignKey,
+        const crypto::KeyAsym &payloadEncryptKey);
 
     static std::unique_ptr<uint8_t[]> serialize( //
         const Frame &frame);
@@ -168,6 +188,13 @@ public:
         const uint32_t bufferSize);
 
     static PayloadUserConnectAck deserializeUserConnectAck( //
+        const uint8_t *const buffer,
+        const uint32_t bufferSize);
+
+    static utils::ByteArray serializeJoinReqAck( //
+        const PayloadJoinReqAck &payload);
+
+    static PayloadJoinReqAck deserializeJoinReqAck( //
         const uint8_t *const buffer,
         const uint32_t bufferSize);
 };
