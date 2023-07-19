@@ -423,7 +423,10 @@ void SecchatServer::cleanupDisconnectedUsers()
                     joinedUsers.end());
             }
 
-            // Remove user...
+            // TODO: persistency - user should not be removed here, instead
+            // the already created user should keep hold of he's keys and
+            // resend them on creation of new user.
+
             mUsers.erase(                      //
                 std::remove_if(mUsers.begin(), //
                                mUsers.end(),
