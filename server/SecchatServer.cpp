@@ -433,8 +433,7 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
             frame,
             roomName,
             mKeyMyAsymSign,
-            requestDestinationUserId.keyEncrypt,
-            userHandleSource->keyEncrypt);
+            requestDestinationUserId.keyEncrypt);
 
         std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
         assert(buffer);

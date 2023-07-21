@@ -173,15 +173,11 @@ void Proto::populatePayloadCurrentSymKeyRequest( //
     Proto::Frame &frame,
     const std::string &roomName,
     const crypto::KeyAsymSignature &payloadSignKey,
-    const crypto::KeyAsym &payloadEncryptKey,
-    const crypto::KeyAsym &payloadEncryptKeyToSend)
+    const crypto::KeyAsym &payloadEncryptKey)
 {
     PayloadRequestCurrentSymKey req;
     req.roomNameSize = roomName.size();
     req.roomName = roomName;
-
-    // TODO: the user key exchange is already done, no need to populate it again
-    memcpy(req.pubEncryptKey, payloadEncryptKeyToSend.mKeyPub, crypto::kPubKeyByteCount);
 
     auto reqSerialized = serializeRequestCurrentSymKey(req);
 
@@ -433,9 +429,6 @@ utils::ByteArray Proto::serializeRequestCurrentSymKey(
     offset += sizeof(uint32_t);
 
     memcpy(&ba.data[offset], payload.roomName.c_str(), payload.roomName.size());
-    offset += payload.roomName.size();
-
-    memcpy(&ba.data[offset], payload.pubEncryptKey, crypto::kPubKeyByteCount);
 
     return ba;
 }
@@ -451,10 +444,6 @@ Proto::PayloadRequestCurrentSymKey Proto::deserializeRequestCurrentSymKey( //
     payload.roomName.assign( //
         (char *)(buffer + sizeof(uint32_t)),
         payload.roomNameSize);
-
-    memcpy(payload.pubEncryptKey,
-           buffer + sizeof(uint32_t) + payload.roomNameSize,
-           crypto::kPubKeyByteCount);
 
     return payload;
 }

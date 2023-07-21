@@ -14,7 +14,7 @@ struct KeyAsym;
 }
 
 // TODO: all of this needs to be thoroughly size-checked
-// TODO: use something like protobuf instead of this horrendous code
+// TODO: use something like protobuf or FlatBuffers instead of this horrendous code
 // TODO: some payloads are actualy filled in by the client, should be fixed
 
 class Proto
@@ -130,7 +130,6 @@ public:
     {
         uint32_t roomNameSize;
         std::string roomName;
-        uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
     };
 
     static void populateHeader( //
@@ -174,8 +173,7 @@ public:
         Proto::Frame &frame,
         const std::string &roomName,
         const crypto::KeyAsymSignature &payloadSignKey,
-        const crypto::KeyAsym &payloadEncryptKey,
-        const crypto::KeyAsym &payloadEncryptKeyToSend);
+        const crypto::KeyAsym &payloadEncryptKey);
 
     static void populatePayloadCurrentSymKeyResponse( //
         Proto::Frame &frame,

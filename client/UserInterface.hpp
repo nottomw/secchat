@@ -30,12 +30,15 @@ void print(const char *const fmt, Ts... args)
 {
     // TODO: fix q&d ui print
 
-    int strSize = std::snprintf(nullptr, 0, fmt, args...) + 1; // +1 for '\0'
-    assert(strSize > 0);
+    const int strSize = std::snprintf(nullptr, 0, fmt, args...) + 1; // +1 for '\0'
+    if (strSize == 0)
+    {
+        ui::print("[utils] tried to print %s which snprintf calculated to size 0", fmt);
+    }
 
     std::unique_ptr<char[]> buf(new char[strSize]);
     std::snprintf(buf.get(), strSize, fmt, args...);
-    auto str = std::string(buf.get(), buf.get() + strSize - 1); // -1 for \0''
+    std::string str(buf.get(), buf.get() + strSize - 1); // -1 for \0''
 
     printStr(str);
 }
