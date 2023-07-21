@@ -12,7 +12,7 @@ namespace ui
 {
 
 std::mutex gPrintInputFormattedMessagesMutex;
-std::vector<std::string> *gPrintInputFormattedMessages = nullptr;
+std::vector<std::string> gPrintInputFormattedMessages;
 
 void handleCtrlC(int /*signal*/)
 {
@@ -22,11 +22,6 @@ void handleCtrlC(int /*signal*/)
 void stopUserInterface()
 {
     // nothing to do
-}
-
-void initialize(std::vector<std::string> &formattedMessagesToUI)
-{
-    gPrintInputFormattedMessages = &formattedMessagesToUI;
 }
 
 bool runChatUserInterface( //
@@ -46,12 +41,12 @@ bool runChatUserInterface( //
             {
                 std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
 
-                for (const auto &msg : *gPrintInputFormattedMessages)
+                for (const auto &msg : gPrintInputFormattedMessages)
                 {
                     utils::log("%s", msg.c_str());
                 }
 
-                gPrintInputFormattedMessages->clear();
+                gPrintInputFormattedMessages.clear();
             }
 
             std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -91,12 +86,9 @@ bool runChatUserInterface( //
 
 void printStr(const std::string &str)
 {
-    if (gPrintInputFormattedMessages != nullptr)
     {
-        {
-            std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
-            gPrintInputFormattedMessages->push_back(str);
-        }
+        std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
+        gPrintInputFormattedMessages.push_back(str);
     }
 }
 
