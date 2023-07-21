@@ -42,9 +42,9 @@ public:
         kChatRoomLeave,  // from user
 
         // TODO: requested user should get a prompt (yes/no) to confirm he wants to provide the keys
-        kChatGroupSymKeyRequest, // from user, request asym key, sent to random N users (or chat
-                                 // owner?)
-        kChatGroupSymKeyReplyUserKey, // from server, send other user pub key to requesting user
+        kChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users (or chat
+                                  // owner?)
+        kUserPubKeys,             // from server, send other user pub key to requesting user
         kChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user
                                   // pubkey
 
@@ -132,6 +132,12 @@ public:
         std::string roomName;
     };
 
+    struct PayloadMessage
+    {
+        utils::ByteArray nonce; // plain
+        utils::ByteArray msg;   // encrypted
+    };
+
     static void populateHeader( //
         Frame &frame,
         const std::string &source,
@@ -175,11 +181,11 @@ public:
         const crypto::KeyAsymSignature &payloadSignKey,
         const crypto::KeyAsym &payloadEncryptKey);
 
-    static void populatePayloadCurrentSymKeyResponse( //
+    static void populatePayloadMessage( //
         Proto::Frame &frame,
-        const crypto::KeySym &chatGroupSymKey,
+        const std::string &message,
         const crypto::KeyAsymSignature &payloadSignKey,
-        const crypto::KeyAsym &payloadEncryptKey);
+        const crypto::KeySym &groupChatKey);
 
     static std::unique_ptr<uint8_t[]> serialize( //
         const Frame &frame);
@@ -212,4 +218,8 @@ public:
     static PayloadRequestCurrentSymKey deserializeRequestCurrentSymKey( //
         const uint8_t *const buffer,
         const uint32_t bufferSize);
+
+    static utils::ByteArray serializeMessage(const PayloadMessage &payload);
+    static PayloadMessage deserializeMessage(const uint8_t *const buffer,
+                                             const uint32_t bufferSize);
 };

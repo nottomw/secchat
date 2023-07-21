@@ -303,6 +303,12 @@ void SecchatServer::handleJoinChatRoom( //
         const bool sendOk = mTransport.sendBlocking(rawFrame.get(), frame.getSize(), session);
         assert(sendOk);
 
+        if (newRoomCreated == false)
+        {
+            // user just joined new room, send out his keys to all and all keys to him
+            userJoinedPubKeysExchange(*userHandle, join.roomName);
+        }
+
         // TODO: broadcast the pubsign/pub keys to other users on room join
     }
 }
@@ -407,20 +413,6 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
 
     auto &requestDestinationUserId = findUserById(randomUserId);
 
-    // broadcast public keys to both requesting user and sending user
-
-    sendUserKeysToUser(requestDestinationUserId.keySign, //
-                       requestDestinationUserId.keyEncrypt,
-                       requestDestinationUserId.mUserName,
-                       source,
-                       userHandleSource);
-
-    sendUserKeysToUser(userHandleSource->keySign, //
-                       userHandleSource->keyEncrypt,
-                       userHandleSource->mUserName,
-                       requestDestinationUserId.mUserName,
-                       &requestDestinationUserId);
-
     utils::log("[server] request sym key for room %s from user %s", //
                roomName.c_str(),
                source.c_str());
@@ -485,20 +477,13 @@ bool SecchatServer::joinUserToRoom( //
 {
     newRoomCreated = false;
 
-    std::optional<std::reference_wrapper<Room>> room;
-    for (auto &roomIt : mRooms)
+    auto roomOpt = findRoomByName(roomName);
+    if (roomOpt)
     {
-        if (roomIt.roomName == roomName)
-        {
-            room = roomIt;
-            break;
-        }
-    }
+        Room *const room = *roomOpt;
 
-    if (room)
-    {
         std::optional<UserId> joinedUser;
-        for (const auto &joinedUserIDIt : room->get().mJoinedUsers)
+        for (const auto &joinedUserIDIt : room->mJoinedUsers)
         {
             if (joinedUserIDIt == user.id)
             {
@@ -514,7 +499,7 @@ bool SecchatServer::joinUserToRoom( //
         }
         else
         {
-            room->get().mJoinedUsers.push_back(user.id);
+            room->mJoinedUsers.push_back(user.id);
             utils::log("[server] room already exists - user joined");
 
             return true;
@@ -537,6 +522,42 @@ bool SecchatServer::joinUserToRoom( //
     }
 
     return false;
+}
+
+void SecchatServer::userJoinedPubKeysExchange( //
+    User &userHandle,
+    const std::string &roomName)
+{
+    auto roomOpt = findRoomByName(roomName);
+    assert(roomOpt); // room must exist now
+
+    // First, send the user's keys to all joined members...
+    Room *const room = *roomOpt;
+    for (auto &alreadyJoinedUserId : room->mJoinedUsers)
+    {
+        User &alreadyJoinedUser = findUserById(alreadyJoinedUserId);
+
+        if (alreadyJoinedUser.mUserName != userHandle.mUserName)
+        {
+            // do the key exchange between just joined users and other users
+
+            // send just joined user's keys to other users in chat
+            sendUserKeysToUser( //
+                alreadyJoinedUser.keySign,
+                alreadyJoinedUser.keyEncrypt,
+                alreadyJoinedUser.mUserName,
+                userHandle.mUserName,
+                &userHandle);
+
+            // sent the other user's keys to just joined user
+            sendUserKeysToUser( //
+                userHandle.keySign,
+                userHandle.keyEncrypt,
+                userHandle.mUserName,
+                alreadyJoinedUser.mUserName,
+                &alreadyJoinedUser);
+        }
+    }
 }
 
 std::optional<SecchatServer::User *> SecchatServer::verifyUserExists(const std::string &userName)
@@ -696,7 +717,7 @@ void SecchatServer::sendUserKeysToUser( //
 
     Proto::populatePayload( //
         userKeysframe,
-        Proto::PayloadType::kChatGroupSymKeyReplyUserKey,
+        Proto::PayloadType::kUserPubKeys,
         encryptedKeys.data.get(),
         encryptedKeys.dataSize);
 

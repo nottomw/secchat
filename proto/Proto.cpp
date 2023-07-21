@@ -193,14 +193,40 @@ void Proto::populatePayloadCurrentSymKeyRequest( //
     pay.size = encryptedReq.dataSize;
 }
 
-void Proto::populatePayloadCurrentSymKeyResponse( //
+void Proto::populatePayloadMessage( //
     Proto::Frame &frame,
-    const crypto::KeySym &chatGroupSymKey,
+    const std::string &message,
     const crypto::KeyAsymSignature &payloadSignKey,
-    const crypto::KeyAsym &payloadEncryptKey)
+    const crypto::KeySym &groupChatKey)
 {
-    //    Proto::Payload &pay = frame.getPayload();
-    //    pay.type = PayloadType::k$$$ChatGroupSymKeyResponse;
+    Payload &pay = frame.getPayload();
+
+    PayloadMessage messagePayload;
+
+    auto nonceBa = crypto::symEncryptGetNonce();
+    messagePayload.nonce = std::move(nonceBa);
+
+    const uint32_t messageSize = message.size();
+    crypto::SignedData signedData = //
+        crypto::sign(               //
+            payloadSignKey,
+            (uint8_t *)message.c_str(),
+            messageSize);
+
+    crypto::EncryptedData encryptedData = //
+        crypto::symEncrypt(groupChatKey,  //
+                           signedData.data.get(),
+                           signedData.dataSize,
+                           messagePayload.nonce);
+
+    messagePayload.msg.data = std::move(encryptedData.data);
+    messagePayload.msg.dataSize = encryptedData.dataSize;
+
+    utils::ByteArray serializedMessage = serializeMessage(messagePayload);
+
+    pay.type = Proto::PayloadType::k$$$MessageToRoom;
+    pay.payload = std::move(serializedMessage.data);
+    pay.size = serializedMessage.dataSize;
 }
 
 std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
@@ -446,6 +472,59 @@ Proto::PayloadRequestCurrentSymKey Proto::deserializeRequestCurrentSymKey( //
         payload.roomNameSize);
 
     return payload;
+}
+
+utils::ByteArray Proto::serializeMessage( //
+    const Proto::PayloadMessage &payload)
+{
+    const uint32_t payloadSize = //
+        sizeof(uint32_t) +       // nonce size
+        payload.nonce.dataSize + //
+        sizeof(uint32_t) +       // data size
+        payload.msg.dataSize;
+
+    utils::ByteArray ba{payloadSize};
+    uint8_t *baPtr = ba.data.get();
+
+    uint32_t offset = 0U;
+    memcpy(baPtr, &payload.nonce.dataSize, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    memcpy(baPtr + offset, payload.nonce.data.get(), payload.nonce.dataSize);
+    offset += payload.nonce.dataSize;
+
+    memcpy(baPtr + offset, &payload.msg.dataSize, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    memcpy(baPtr + offset, payload.msg.data.get(), payload.msg.dataSize);
+
+    return ba;
+}
+
+Proto::PayloadMessage Proto::deserializeMessage( //
+    const uint8_t *const buffer,
+    const uint32_t /*bufferSize*/)
+{
+    PayloadMessage msg;
+
+    uint32_t offset = 0U;
+
+    memcpy(&msg.nonce.dataSize, buffer + offset, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    msg.nonce.data = std::make_unique<uint8_t[]>(msg.nonce.dataSize);
+
+    memcpy(msg.nonce.data.get(), buffer + offset, msg.nonce.dataSize);
+    offset += msg.nonce.dataSize;
+
+    memcpy(&msg.msg.dataSize, buffer + offset, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    msg.msg.data = std::make_unique<uint8_t[]>(msg.msg.dataSize);
+
+    memcpy(msg.msg.data.get(), buffer + offset, msg.msg.dataSize);
+
+    return msg;
 }
 
 uint32_t Proto::Frame::getSize() const

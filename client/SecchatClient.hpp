@@ -59,7 +59,7 @@ private:
     void handleConnectAck(Proto::Frame &frame);
     void serverJoinRoom(const std::string &roomName);
     void handleChatRoomJoined(Proto::Frame &frame);
-    void handleCurrentSymKeyRequestReply(Proto::Frame &frame); // TODO: confusing name
+    void handleUserPubKeys(Proto::Frame &frame);
     void handleCurrentSymKeyRequest(Proto::Frame &frame);
     void handleCurrentSymKeyResponse(Proto::Frame &frame);
     void handleMessageToRoom(Proto::Frame &frame);

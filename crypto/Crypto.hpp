@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Utils.hpp"
+
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -74,17 +76,19 @@ KeySym derive(const KeySym &key,
               const uint8_t *const salt,
               const uint32_t saltSize);
 
+utils::ByteArray symEncryptGetNonce();
+
 EncryptedData symEncrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
-    const uint32_t bufferSize);
+    const uint32_t bufferSize,
+    const utils::ByteArray &nonce);
 
-DecryptedData symDecrypt( //
+std::optional<DecryptedData> symDecrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize,
-    const uint8_t *const nonce,
-    const uint32_t nonceSize);
+    const utils::ByteArray &nonce);
 
 EncryptedData asymEncrypt( //
     const KeyAsym &key,

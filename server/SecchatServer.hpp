@@ -98,6 +98,8 @@ private:
         const std::string &roomName,
         bool &newRoomCreated);
 
+    void userJoinedPubKeysExchange(User &userHandle, const std::string &roomName);
+
     std::optional<User *> verifyUserExists(const std::string &userName);
 
     bool requestNewSymKeyFromUser( //

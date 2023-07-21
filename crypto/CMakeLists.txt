@@ -12,6 +12,7 @@ target_include_directories(crypto
 target_link_libraries(crypto
     PRIVATE
         CONAN_PKG::libsodium
+        secchat::utils
 )
 
 add_library(secchat::crypto ALIAS crypto)

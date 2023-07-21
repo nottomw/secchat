@@ -79,10 +79,25 @@ KeySym derive(const KeySym &key,
     return derivedKey;
 }
 
+utils::ByteArray symEncryptGetNonce()
+{
+    utils::ByteArray ba;
+
+    ba.data =                       //
+        std::unique_ptr<uint8_t[]>( //
+            new uint8_t[crypto_secretbox_NONCEBYTES]);
+    ba.dataSize = crypto_secretbox_NONCEBYTES;
+
+    randombytes_buf(ba.data.get(), crypto_secretbox_NONCEBYTES);
+
+    return ba;
+}
+
 EncryptedData symEncrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
-    const uint32_t bufferSize)
+    const uint32_t bufferSize,
+    const utils::ByteArray &nonce)
 {
     EncryptedData res;
 
@@ -91,7 +106,8 @@ EncryptedData symEncrypt( //
             new uint8_t[crypto_secretbox_NONCEBYTES]);
     res.nonceSize = crypto_secretbox_NONCEBYTES;
 
-    randombytes_buf(res.nonce.get(), crypto_secretbox_NONCEBYTES);
+    // unnecessary copy?
+    memcpy(res.nonce.get(), nonce.data.get(), crypto_secretbox_NONCEBYTES);
 
     res.data =                      //
         std::unique_ptr<uint8_t[]>( //
@@ -111,16 +127,15 @@ EncryptedData symEncrypt( //
     return res;
 }
 
-DecryptedData symDecrypt( //
+std::optional<DecryptedData> symDecrypt( //
     const KeySym &key,
     const uint8_t *const buffer,
     const uint32_t bufferSize,
-    const uint8_t *const nonce,
-    const uint32_t nonceSize)
+    const utils::ByteArray &nonce)
 {
     DecryptedData decryptedData;
 
-    assert(nonceSize == crypto_secretbox_NONCEBYTES);
+    assert(nonce.dataSize == crypto_secretbox_NONCEBYTES);
 
     const uint32_t plaintextSize = bufferSize - crypto_secretbox_MACBYTES;
 
@@ -133,9 +148,12 @@ DecryptedData symDecrypt( //
         decryptedData.data.get(),
         buffer,
         bufferSize,
-        nonce,
+        nonce.data.get(),
         key.mKey);
-    assert(openOk == 0);
+    if (openOk != 0)
+    {
+        return std::nullopt;
+    }
 
     return decryptedData;
 }
