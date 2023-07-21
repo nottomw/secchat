@@ -1,6 +1,7 @@
 #include "Proto.hpp"
 
 #include <cassert>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 
@@ -17,7 +18,15 @@ void Proto::populateHeader( //
     const std::string &destination)
 {
     frame.header.protoVersion = kProtoVersionCurrent;
-    frame.header.timestampSend = 0U; // populated later
+
+    auto currentTime = //
+        std::chrono::system_clock::now();
+    auto currentTimeUnixMicro =                                //
+        std::chrono::duration_cast<std::chrono::microseconds>( //
+            currentTime.time_since_epoch())
+            .count();
+
+    frame.header.timestampSend = currentTimeUnixMicro; // should be populated later
 
     frame.header.source = std::make_unique<char[]>(source.size());
     memcpy(frame.header.source.get(), source.c_str(), source.size());
@@ -81,7 +90,8 @@ void Proto::populatePayloadUserConnectAck( //
     memcpy(signOff, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
     memcpy(encrOff, key.mKeyPub, crypto::kPubKeyByteCount);
 
-    crypto::EncryptedData encrypted = crypto::asymEncrypt(payloadEncryptionKey, tmpBufferAddr, payloadSize);
+    crypto::EncryptedData encrypted =
+        crypto::asymEncrypt(payloadEncryptionKey, tmpBufferAddr, payloadSize);
 
     frame.payload.type = PayloadType::kUserConnectAck;
     frame.payload.payload = std::move(encrypted.data);
@@ -159,7 +169,35 @@ void Proto::populatePayloadNewSymKeyRequest( //
     pay.size = encryptedData.dataSize;
 }
 
-void Proto::populatePayloadChatGroupSymKeyResponse( //
+void Proto::populatePayloadCurrentSymKeyRequest( //
+    Proto::Frame &frame,
+    const std::string &roomName,
+    const crypto::KeyAsymSignature &payloadSignKey,
+    const crypto::KeyAsym &payloadEncryptKey,
+    const crypto::KeyAsym &payloadEncryptKeyToSend)
+{
+    PayloadRequestCurrentSymKey req;
+    req.roomNameSize = roomName.size();
+    req.roomName = roomName;
+
+    // TODO: the user key exchange is already done, no need to populate it again
+    memcpy(req.pubEncryptKey, payloadEncryptKeyToSend.mKeyPub, crypto::kPubKeyByteCount);
+
+    auto reqSerialized = serializeRequestCurrentSymKey(req);
+
+    auto signedReq = //
+        crypto::sign(payloadSignKey, reqSerialized.data.get(), reqSerialized.dataSize);
+
+    auto encryptedReq =
+        crypto::asymEncrypt(payloadEncryptKey, signedReq.data.get(), signedReq.dataSize);
+
+    Payload &pay = frame.getPayload();
+    pay.type = Proto::PayloadType::kChatGroupSymKeyRequest;
+    pay.payload = std::move(encryptedReq.data);
+    pay.size = encryptedReq.dataSize;
+}
+
+void Proto::populatePayloadCurrentSymKeyResponse( //
     Proto::Frame &frame,
     const crypto::KeySym &chatGroupSymKey,
     const crypto::KeyAsymSignature &payloadSignKey,
@@ -377,6 +415,52 @@ Proto::PayloadJoinReqAck Proto::deserializeJoinReqAck( //
     return payload;
 }
 
+utils::ByteArray Proto::serializeRequestCurrentSymKey(
+    const Proto::PayloadRequestCurrentSymKey &payload)
+{
+    const uint32_t totalSize =    //
+        sizeof(uint32_t) +        //
+        payload.roomName.size() + //
+        crypto::kPubKeyByteCount;
+
+    utils::ByteArray ba;
+    ba.data = std::make_unique<uint8_t[]>(totalSize);
+    ba.dataSize = totalSize;
+
+    uint32_t offset = 0;
+
+    memcpy(&ba.data[offset], &payload.roomNameSize, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    memcpy(&ba.data[offset], payload.roomName.c_str(), payload.roomName.size());
+    offset += payload.roomName.size();
+
+    memcpy(&ba.data[offset], payload.pubEncryptKey, crypto::kPubKeyByteCount);
+
+    return ba;
+
+    return ba;
+}
+
+Proto::PayloadRequestCurrentSymKey Proto::deserializeRequestCurrentSymKey( //
+    const uint8_t *const buffer,
+    const uint32_t /*bufferSize*/)
+{
+    PayloadRequestCurrentSymKey payload;
+
+    memcpy(&payload.roomNameSize, buffer, sizeof(uint32_t));
+
+    payload.roomName.assign( //
+        (char *)(buffer + sizeof(uint32_t)),
+        payload.roomNameSize);
+
+    memcpy(payload.pubEncryptKey,
+           buffer + sizeof(uint32_t) + payload.roomNameSize,
+           crypto::kPubKeyByteCount);
+
+    return payload;
+}
+
 uint32_t Proto::Frame::getSize() const
 {
     constexpr uint32_t kHeaderSizeStatic = //
@@ -410,11 +494,6 @@ Proto::Header &Proto::Frame::getHeader()
 Proto::Payload &Proto::Frame::getPayload()
 {
     return payload;
-}
-
-Proto::Frame::Frame()
-{
-    // memory allocated later
 }
 
 Proto::Payload::Payload()

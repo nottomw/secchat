@@ -64,6 +64,8 @@ private:
     crypto::KeyAsymSignature mKeyMyAsymSign;
 
     User &findUserById(const UserId userId);
+    std::optional<User *> findUserByName(const std::string &userName);
+    std::optional<Room *> findRoomByName(const std::string &roomName);
 
     void handlePacket( //
         const uint8_t *const data,
@@ -83,6 +85,13 @@ private:
         std::shared_ptr<Session> session,
         const uint8_t *const rawBuffer);
 
+    void handleChatGroupSymKeyRequest( //
+        Proto::Frame &frame);
+
+    void handleChatGroupSymKeyResponse( //
+        Proto::Frame &frame,
+        const uint8_t *const rawBuffer);
+
     // for now "newRoomCreated", should be something nicer
     bool joinUserToRoom( //
         User &user,
@@ -96,4 +105,10 @@ private:
         SecchatServer::User &userHandle);
 
     void cleanupDisconnectedUsers();
+
+    void sendUserKeysToUser(const crypto::KeyAsymSignature &keysToSendSign,
+                            const crypto::KeyAsym &keysToSendEncrypt,
+                            const std::string &userNameSrc,
+                            const std::string &userNameDest,
+                            const SecchatServer::User *const userHandleDest = nullptr);
 };

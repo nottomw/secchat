@@ -24,30 +24,31 @@ Session::Session(Session &&s)
 
 void Session::start()
 {
-    mSocket.async_read_some(asio::buffer(mRawBuffer, 1024), //
-                            [this](std::error_code ec, std::size_t length) {
-                                if (!ec)
-                                {
-                                    ReceivedData data{length};
-                                    memcpy(data.mBuffer.get(), mRawBuffer, length);
+    mSocket.async_read_some(
+        asio::buffer(mRawBuffer, 1024), //
+        [this](std::error_code ec, std::size_t length) {
+            if (!ec)
+            {
+                ReceivedData data{length};
+                memcpy(data.mBuffer.get(), mRawBuffer, length);
 
-                                    {
-                                        std::lock_guard<std::mutex> l{mReceivedDataQueueMutex};
-                                        mReceivedDataQueue.push_back(std::move(data));
-                                    }
+                {
+                    std::lock_guard<std::mutex> l{mReceivedDataQueueMutex};
+                    mReceivedDataQueue.push_back(std::move(data));
+                }
 
-                                    start(); // continue receiving
-                                }
-                                else if ((ec == asio::error::eof) || //
-                                         (ec == asio::error::connection_reset))
-                                {
-                                    invalidate();
-                                }
-                                else
-                                {
-                                    utils::log("[session] READ ERROR: %s, %d\n", ec.message().c_str(), ec.value());
-                                }
-                            } //
+                start(); // continue receiving
+            }
+            else if ((ec == asio::error::eof) || //
+                     (ec == asio::error::connection_reset))
+            {
+                invalidate();
+            }
+            else
+            {
+                utils::log("[session] READ ERROR: %s, %d", ec.message().c_str(), ec.value());
+            }
+        } //
     );
 }
 
@@ -58,7 +59,8 @@ asio::ip::tcp::socket &Session::getSocket()
 
 void Session::invalidate()
 {
-    utils::log("[session] INVALIDATED: %s\n", mSocket.remote_endpoint().address().to_string().c_str());
+    utils::log("[session] INVALIDATED: %s",
+               mSocket.remote_endpoint().address().to_string().c_str());
     mValid = false; // scheduled for disposal
 }
 
@@ -77,7 +79,9 @@ bool Session::operator==(const Session &s)
     return (getId() == s.getId());
 }
 
-bool Session::getData(uint8_t *const buffer, const uint32_t bufferSizeMax, uint32_t *const bufferReceivedLen)
+bool Session::getData(uint8_t *const buffer,
+                      const uint32_t bufferSizeMax,
+                      uint32_t *const bufferReceivedLen)
 {
     {
         std::lock_guard<std::mutex> l{mReceivedDataQueueMutex};

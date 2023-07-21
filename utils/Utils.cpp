@@ -2,36 +2,41 @@
 
 #include <cstdio>
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
-void utils::printCharacters( //
+std::string utils::formatCharacters( //
     const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar)
+    const uint32_t bufferSize)
 {
+    std::stringstream ss;
+
     for (uint32_t i = 0; i < bufferSize; ++i)
     {
         const char charToPrint = isprint(buffer[i]) ? buffer[i] : 'X';
-        utils::log("%c", charToPrint);
+        ss << charToPrint;
     }
 
-    utils::log("%c", lastChar);
-
-    fflush(stdout);
+    return ss.str();
 }
 
-void utils::printCharactersHex( //
+std::string utils::formatCharactersHex( //
     const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar)
+    const uint32_t bufferSize)
 {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
     for (uint32_t i = 0; i < bufferSize; ++i)
     {
-        utils::log("%02x ", buffer[i]);
+        ss << std::setw(2) << static_cast<uint32_t>(buffer[i]);
+        if (i < (bufferSize - 1))
+        {
+            ss << " ";
+        }
     }
 
-    utils::log("%c", lastChar);
-
-    fflush(stdout);
+    return ss.str();
 }
 
 std::string utils::formatChatMessage( //

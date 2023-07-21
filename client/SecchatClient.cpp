@@ -7,28 +7,25 @@
 #include <iostream>
 #include <thread>
 
-SecchatClient::SecchatClient(std::vector<std::string> &messageUIScrollback)
+SecchatClient::SecchatClient()
     : mTransport{}
     , mReaderShouldRun{true}
     , mSymmetricEncryptionReady{false}
-    , mMessageUIScrollback{messageUIScrollback}
 {
     if (!crypto::init())
     {
-        ui::print("Crypto init failed\n");
+        ui::print("Crypto init failed");
         assert(false); // fatal error...
     }
 
-    ui::print("[client] -- crypto keys begin --\n");
-    ui::print("[client] crypto: generatic signing key pair, pub:\n");
     mKeyMyAsymSign = crypto::keygenAsymSign();
-    ui::printCharactersHex(mKeyMyAsymSign.mKeyPub, crypto::kPubKeySignatureByteCount);
-
-    ui::print("[client] crypto: generatic encrypting key pair, pub:\n");
     mKeyMyAsym = crypto::keygenAsym();
-    ui::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
 
-    ui::print("[client] -- crypto keys end --\n");
+    const std::string keySignPubStrHex = utils::formatCharactersHex(mKeyMyAsymSign.mKeyPub, 5);
+    const std::string keyEncrPubStrHex = utils::formatCharactersHex(mKeyMyAsym.mKeyPub, 5);
+
+    ui::print("[client] CLIENTS CRYPTO KEY: sign pub key: [ %s ]", keySignPubStrHex.c_str());
+    ui::print("[client] CLIENTS CRYPTO KEY: encr pub key: [ %s ]", keyEncrPubStrHex.c_str());
 }
 
 void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t port)
@@ -37,7 +34,7 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
         [](std::weak_ptr<Session> /*sess*/) {
             // For client there should be only a single session (to server),
             // this means we got disconnected and have to handle this...
-            ui::print("[client] disconnected from server, closing client...\n");
+            ui::print("[client] disconnected from server, closing client...");
             ui::stopUserInterface();
 
             // The disconnect should probably trigger server connection retry,
@@ -89,7 +86,7 @@ bool SecchatClient::startChat(const std::string &userName)
 
 bool SecchatClient::joinRoom(const std::string &roomName)
 {
-    ui::print("[client] joining room %s\n", roomName.c_str());
+    ui::print("[client] joining room %s", roomName.c_str());
 
     serverJoinRoom(roomName);
 
@@ -101,7 +98,7 @@ bool SecchatClient::joinRoom(const std::string &roomName)
         return false;
     }
 
-    ui::print("[client] joined room %s\n", roomName.c_str());
+    ui::print("[client] joined room %s", roomName.c_str());
 
     return true;
 }
@@ -110,7 +107,8 @@ bool SecchatClient::sendMessage(const std::string &roomName, const std::string &
 {
     if (mSymmetricEncryptionReady == false)
     {
-        ui::print("[client] symmetric encryption not established yet, dropping message %s\n", message.c_str());
+        ui::print("[client] symmetric encryption not established yet, dropping message %s",
+                  message.c_str());
         return false;
     }
 
@@ -170,10 +168,23 @@ void SecchatClient::handlePacket( //
                 handleMessageToRoom(framesIt);
                 break;
 
+            case Proto::PayloadType::kChatGroupSymKeyReplyUserKey:
+                handleCurrentSymKeyRequestReply(framesIt);
+                break;
+
+            case Proto::PayloadType::kChatGroupSymKeyRequest:
+                handleCurrentSymKeyRequest(framesIt);
+                break;
+
+            case Proto::PayloadType::kChatGroupSymKeyResponse:
+                handleCurrentSymKeyResponse(framesIt);
+                break;
+
             default:
-                ui::print("[server] received incorrect frame, drop: [");
-                ui::printCharactersHex(data, dataLen, '\0');
-                ui::print("]\n");
+                const std::string invalidFrameStrHex = //
+                    utils::formatCharactersHex(data, dataLen);
+                ui::print("[client] received incorrect frame, drop: [%s]",
+                          invalidFrameStrHex.c_str());
                 break;
         }
     }
@@ -204,12 +215,11 @@ void SecchatClient::handleConnectAck(Proto::Frame &frame)
     Proto::PayloadUserConnectAck connAck = //
         Proto::deserializeUserConnectAck(data.data.get(), data.dataSize);
 
-    ui::print("[client] received server pubsign/pub keys\n");
-    ui::print("[client] server sign pubkey:\n");
-    ui::printCharactersHex(connAck.pubSignKey, crypto::kPubKeySignatureByteCount);
-
-    ui::print("[client] server encrypt pubkey:\n");
-    ui::printCharactersHex(connAck.pubEncryptKey, crypto::kPubKeyByteCount);
+    const std::string signKeyHex = utils::formatCharactersHex(connAck.pubSignKey, 5);
+    const std::string encryptKeyHex = utils::formatCharactersHex(connAck.pubEncryptKey, 5);
+    ui::print("[client] received server pubsign [ %s ] and pub encrypt [ %s ] keys", //
+              signKeyHex.c_str(),
+              encryptKeyHex.c_str());
 
     memcpy(mKeyServerAsymSign.mKeyPub, connAck.pubSignKey, crypto::kPubKeySignatureByteCount);
     memcpy(mKeyServerAsym.mKeyPub, connAck.pubEncryptKey, crypto::kPubKeyByteCount);
@@ -257,7 +267,7 @@ void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
         decrypted.dataSize);
     if (!nonsignedData)
     {
-        ui::print("[client] signature verification failed, source: %s\n", source.c_str());
+        ui::print("[client] signature verification failed, source: %s", source.c_str());
         return;
     }
 
@@ -273,7 +283,7 @@ void SecchatClient::handleChatRoomJoined(Proto::Frame &frame)
     else
     {
         // if the room already existed, the client have to request current sym key
-        requestCurrentSymKey();
+        requestCurrentSymKey(reqAck.roomName);
     }
 
     mWaitQueue.complete(utils::WaitEventType::kUserJoined, reqAck.roomName);
@@ -283,7 +293,7 @@ void SecchatClient::newSymKeyRequested( //
     const std::string &source,
     const std::string &roomName)
 {
-    ui::print("[client] %s requested new symmetric key generation for room %s\n", //
+    ui::print("[client] %s requested new symmetric key generation for room %s, generating", //
               source.c_str(),
               roomName.c_str());
 
@@ -292,30 +302,163 @@ void SecchatClient::newSymKeyRequested( //
     mSymmetricEncryptionReady = true;
 }
 
-void SecchatClient::requestCurrentSymKey()
+void SecchatClient::requestCurrentSymKey(const std::string &roomName)
 {
-    // TODO: request current sym key impl !!!
-
-    // Send to server request for current sym group chat key, the message
-    // should be signed/encrypted with client/server keys.
+    // Send to server request for current sym group chat key.
     // The server then will forward the request and the users public key to
     // selected chat participants and will return the encrypted sym key to requestor.
+
+    Proto::Frame frame;
+
+    Proto::populateHeader(frame, mMyUserName, "server");
+
+    auto signedPayload = crypto::sign(mKeyMyAsymSign, (uint8_t *)roomName.c_str(), roomName.size());
+    auto encryptedPayload =
+        crypto::asymEncrypt(mKeyServerAsym, signedPayload.data.get(), signedPayload.dataSize);
+
+    Proto::populatePayload( //
+        frame,
+        Proto::PayloadType::kChatGroupSymKeyRequest,
+        (uint8_t *)encryptedPayload.data.get(),
+        encryptedPayload.dataSize);
+
+    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
+    assert(buffer);
+
+    mTransport.sendBlocking(buffer.get(), frame.getSize());
+}
+
+void SecchatClient::handleCurrentSymKeyRequestReply(Proto::Frame &frame)
+{
+    // TODO: SECURITY: any user could try to request the asym key from
+    // any other user by this protocol by spoofing the server?
+
+    Proto::Header &header = frame.getHeader();
+    Proto::Payload &payload = frame.getPayload();
+
+    const std::string source{(char *)header.source.get(), header.sourceSize};
+
+    auto decrypted =         //
+        crypto::asymDecrypt( //
+            mKeyMyAsym,
+            payload.payload.get(),
+            payload.size);
+    auto unsignedPayloadOpt = //
+        crypto::signedVerify( //
+            mKeyServerAsymSign,
+            decrypted.data.get(),
+            decrypted.dataSize);
+    if (!unsignedPayloadOpt)
+    {
+        ui::print("[client] failed to verify signature of user %s, abort");
+        return;
+    }
+
+    const uint8_t *const keysPlain = unsignedPayloadOpt->data.get();
+
+    RemoteUserKeys remoteUserKeys;
+    memcpy(remoteUserKeys.mSign.mKeyPub,
+           keysPlain, //
+           crypto::kPubKeySignatureByteCount);
+    memcpy(remoteUserKeys.mEncrypt.mKeyPub, //
+           keysPlain + crypto::kPubKeySignatureByteCount,
+           crypto::kPubKeyByteCount);
+
+    // TODO: this asym key exchange should be a separate protocol phase (?)
+
+    ui::print("[client] received asym keys from user %s (sym key request phase#1)", //
+              source.c_str());
+
+    mRemoteUserKeys[source] = std::move(remoteUserKeys);
 }
 
 void SecchatClient::handleCurrentSymKeyRequest(Proto::Frame &frame)
 {
-    //    Proto::Frame symKeyFrame;
-    //    Proto::populateHeader(symKeyFrame, mMyUserName, roomName);
-    //    Proto::populatePayloadChatGroupSymKeyResponse( //
-    //        symKeyFrame,
-    //        mKeyChatGroup,
-    //        mKeyMyAsymSign,
-    //        mKeyMyAsym);
+    Proto::Header &header = frame.getHeader();
+    Proto::Payload &payload = frame.getPayload();
 
-    //    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
-    //    assert(buffer);
+    const std::string source{(char *)header.source.get(), header.sourceSize};
 
-    //    mTransport.sendBlocking(buffer.get(), frame.getSize());
+    if (mRemoteUserKeys.count(source) == 0)
+    {
+        ui::print("[client] keys for user %s missing, drop", source.c_str());
+        return;
+    }
+
+    auto remoteUserKeys = mRemoteUserKeys[source];
+
+    auto decrypted = crypto::asymDecrypt(mKeyMyAsym, payload.payload.get(), payload.size);
+
+    auto nonsigned =
+        crypto::signedVerify(mKeyServerAsymSign, decrypted.data.get(), decrypted.dataSize);
+    if (!nonsigned)
+    {
+        ui::print("[client] failed to verify server's signature, drop");
+        return;
+    }
+
+    Proto::PayloadRequestCurrentSymKey req =
+        Proto::deserializeRequestCurrentSymKey(nonsigned->data.get(), nonsigned->dataSize);
+
+    ui::print(
+        "[client] received sym key request from user %s for room %s (sym key request phase#2)", //
+        source.c_str(),
+        req.roomName.c_str());
+
+    Proto::Frame symKeyReply;
+    Proto::populateHeader(symKeyReply, mMyUserName, source);
+
+    // encrypt with requesting user asym key
+
+    const auto asymKeyHex = utils::formatCharactersHex(mKeyChatGroup.mKey, 5);
+    ui::print("[client] ##### SENDING SYM KEY [ %s ] #####", asymKeyHex.c_str());
+
+    auto symKeySigned = crypto::sign(mKeyMyAsymSign, mKeyChatGroup.mKey, crypto::kSymKeyByteCount);
+    auto symKeyEncrypted = crypto::asymEncrypt( //
+        remoteUserKeys.mEncrypt,
+        symKeySigned.data.get(),
+        symKeySigned.dataSize);
+
+    Proto::populatePayload(symKeyReply,
+                           Proto::PayloadType::kChatGroupSymKeyResponse,
+                           symKeyEncrypted.data.get(),
+                           symKeyEncrypted.dataSize);
+
+    auto serializedSymKey = Proto::serialize(symKeyReply);
+
+    mTransport.sendBlocking(serializedSymKey.get(), symKeyReply.getSize());
+}
+
+void SecchatClient::handleCurrentSymKeyResponse(Proto::Frame &frame)
+{
+    const Proto::Header &header = frame.getHeader();
+    const Proto::Payload &payload = frame.getPayload();
+
+    const std::string source{(char *)header.source.get(), header.sourceSize};
+
+    const uint32_t matchingUsersCount = mRemoteUserKeys.count(source);
+    if (matchingUsersCount == 0U)
+    {
+        ui::print("[client] missing keys from user %s, drop", source.c_str());
+        return;
+    }
+
+    auto remoteUserKeys = mRemoteUserKeys[source];
+
+    auto decrypted = crypto::asymDecrypt(mKeyMyAsym, payload.payload.get(), payload.size);
+    auto nonsigned =
+        crypto::signedVerify(remoteUserKeys.mSign, decrypted.data.get(), decrypted.dataSize);
+    if (!nonsigned)
+    {
+        ui::print("[client] failed to verify signature from from user %s, drop", source.c_str());
+        return;
+    }
+
+    memcpy(mKeyChatGroup.mKey, nonsigned->data.get(), nonsigned->dataSize);
+    const auto symKeyHex = utils::formatCharactersHex(mKeyChatGroup.mKey, 5);
+    ui::print("[client] ##### RECEIVED SYM KEY [ %s ] #####", symKeyHex.c_str());
+
+    mSymmetricEncryptionReady = true; // we now have full encryption
 }
 
 void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
@@ -334,8 +477,12 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
     roomName.assign(header.destination.get(), header.destinationSize);
     message.assign((char *)payload.payload.get(), payload.size);
 
-    const std::string formattedMessage = //
-        utils::formatChatMessage(roomName, userName, message);
+    // TODO: when encryption works, remove
+    const auto newMesgPrintable =
+        utils::formatCharacters((uint8_t *)message.c_str(), message.size());
 
-    mMessageUIScrollback.push_back(formattedMessage);
+    const std::string formattedMessage = //
+        utils::formatChatMessage(roomName, userName, newMesgPrintable);
+
+    ui::print(formattedMessage.c_str());
 }

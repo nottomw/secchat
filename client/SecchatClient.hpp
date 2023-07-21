@@ -6,11 +6,12 @@
 #include "WaitQueue.hpp"
 
 #include <condition_variable>
+#include <map>
 
 class SecchatClient
 {
 public:
-    SecchatClient(std::vector<std::string> &messageUIScrollback);
+    SecchatClient();
 
     void connectToServer(const std::string &ipAddr, const uint16_t port);
     void disconnectFromServer();
@@ -39,9 +40,15 @@ private:
 
     std::vector<std::string> mJoinedRooms;
 
-    std::vector<std::string> &mMessageUIScrollback;
-
     utils::WaitQueue mWaitQueue;
+
+    struct RemoteUserKeys
+    {
+        crypto::KeyAsym mEncrypt;
+        crypto::KeyAsymSignature mSign;
+    };
+
+    std::map<std::string, RemoteUserKeys> mRemoteUserKeys;
 
     void handlePacket( //
         const uint8_t *const data,
@@ -52,10 +59,12 @@ private:
     void handleConnectAck(Proto::Frame &frame);
     void serverJoinRoom(const std::string &roomName);
     void handleChatRoomJoined(Proto::Frame &frame);
+    void handleCurrentSymKeyRequestReply(Proto::Frame &frame); // TODO: confusing name
     void handleCurrentSymKeyRequest(Proto::Frame &frame);
+    void handleCurrentSymKeyResponse(Proto::Frame &frame);
     void handleMessageToRoom(Proto::Frame &frame);
 
     void newSymKeyRequested(const std::string &source, const std::string &roomName);
 
-    void requestCurrentSymKey();
+    void requestCurrentSymKey(const std::string &roomName);
 };

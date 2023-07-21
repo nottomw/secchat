@@ -5,7 +5,7 @@
 
 int main()
 {
-    utils::log("Hello world from server...\n");
+    utils::log("Hello world from server...");
 
     SecchatServer server;
     server.start(12345);

@@ -14,6 +14,8 @@ struct KeyAsym;
 }
 
 // TODO: all of this needs to be thoroughly size-checked
+// TODO: use something like protobuf instead of this horrendous code
+// TODO: some payloads are actualy filled in by the client, should be fixed
 
 class Proto
 {
@@ -28,7 +30,8 @@ public:
 
         // ------ ENCRYPTED asym only
 
-        kUserConnectAck, // from server, contains servers pub keys (sign & encrypt), encrypted with user pub key
+        kUserConnectAck, // from server, contains servers pub keys (sign & encrypt), encrypted with
+                         // user pub key
 
         // ------ ENCRYPTED asym only, signed asym by sender:
 
@@ -39,15 +42,19 @@ public:
         kChatRoomLeave,  // from user
 
         // TODO: requested user should get a prompt (yes/no) to confirm he wants to provide the keys
-        kChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users (or chat owner?)
-        kChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user pubkey
+        kChatGroupSymKeyRequest, // from user, request asym key, sent to random N users (or chat
+                                 // owner?)
+        kChatGroupSymKeyReplyUserKey, // from server, send other user pub key to requesting user
+        kChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user
+                                  // pubkey
 
         // ------ ENCRYPTED messages sym, signed asym by sender:
 
         k$$$MessageToRoom, // from user, encrypted sym, signed asym
         k$$$MessageToUser, // from user, encrypted sym, signed asym
 
-        k$$$UserAsymKeyChanged, // send by user - new pubkey, signed with old asym key, encrypted sym
+        k$$$UserAsymKeyChanged, // send by user - new pubkey, signed with old asym key, encrypted
+                                // sym
     };
 
     // Header is never encrypted - sent plain text.
@@ -87,14 +94,6 @@ public:
     struct Frame
     {
     public:
-        Frame();
-
-        Frame(const Frame &) = default;
-        Frame(Frame &&) = default;
-        Frame &operator=(const Frame &) = default;
-        Frame &operator=(Frame &&) = default;
-        ~Frame() = default;
-
         uint32_t getSize() const;
         Header &getHeader();
         Payload &getPayload();
@@ -125,6 +124,13 @@ public:
         uint8_t newRoom; // 1 or 0
         uint32_t roomNameSize;
         std::string roomName;
+    };
+
+    struct PayloadRequestCurrentSymKey
+    {
+        uint32_t roomNameSize;
+        std::string roomName;
+        uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
     };
 
     static void populateHeader( //
@@ -164,7 +170,14 @@ public:
         const crypto::KeyAsymSignature &payloadSignKey,
         const crypto::KeyAsym &payloadEncryptKey);
 
-    static void populatePayloadChatGroupSymKeyResponse( //
+    static void populatePayloadCurrentSymKeyRequest( //
+        Proto::Frame &frame,
+        const std::string &roomName,
+        const crypto::KeyAsymSignature &payloadSignKey,
+        const crypto::KeyAsym &payloadEncryptKey,
+        const crypto::KeyAsym &payloadEncryptKeyToSend);
+
+    static void populatePayloadCurrentSymKeyResponse( //
         Proto::Frame &frame,
         const crypto::KeySym &chatGroupSymKey,
         const crypto::KeyAsymSignature &payloadSignKey,
@@ -192,6 +205,13 @@ public:
         const PayloadJoinReqAck &payload);
 
     static PayloadJoinReqAck deserializeJoinReqAck( //
+        const uint8_t *const buffer,
+        const uint32_t bufferSize);
+
+    static utils::ByteArray serializeRequestCurrentSymKey( //
+        const PayloadRequestCurrentSymKey &payload);
+
+    static PayloadRequestCurrentSymKey deserializeRequestCurrentSymKey( //
         const uint8_t *const buffer,
         const uint32_t bufferSize);
 };

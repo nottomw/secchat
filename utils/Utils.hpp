@@ -20,21 +20,20 @@ public:
     uint32_t dataSize;
 };
 
-void printCharacters( //
+std::string formatCharacters( //
     const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar = '\n');
+    const uint32_t bufferSize);
 
-void printCharactersHex( //
+std::string formatCharactersHex( //
     const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar = '\n');
+    const uint32_t bufferSize);
 
 template <typename... Ts>
 void log(const char *const fmt, Ts... params)
 {
 #if (!LOGGING_QUIET)
     printf(fmt, params...);
+    printf("\n"); // hack to add new line
     fflush(stdout);
 #endif
     // TODO: log to file

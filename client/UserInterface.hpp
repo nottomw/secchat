@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -16,13 +17,12 @@ void handleCtrlC(int signal);
 
 void stopUserInterface();
 
-// must be called before run
-void initialize(std::vector<std::string> &formattedMessagesToUI);
-
 bool runChatUserInterface( //
     SecchatClient &client,
     const std::string &joinedRoom,
     const std::string &userName);
+
+void printStr(const std::string &str);
 
 // Print message with UI-specific interface.
 template <typename... Ts>
@@ -30,32 +30,14 @@ void print(const char *const fmt, Ts... args)
 {
     // TODO: fix q&d ui print
 
-    extern std::vector<std::string> *gPrintInputFormattedMessages;
+    int strSize = std::snprintf(nullptr, 0, fmt, args...) + 1; // +1 for '\0'
+    assert(strSize > 0);
 
-    if (gPrintInputFormattedMessages != nullptr)
-    {
-        int strSize = std::snprintf(nullptr, 0, fmt, args...) + 1; // +1 for '\0'
-        assert(strSize > 0);
+    std::unique_ptr<char[]> buf(new char[strSize]);
+    std::snprintf(buf.get(), strSize, fmt, args...);
+    auto str = std::string(buf.get(), buf.get() + strSize - 1); // -1 for \0''
 
-        std::unique_ptr<char[]> buf(new char[strSize]);
-        std::snprintf(buf.get(), strSize, fmt, args...);
-        auto str = std::string(buf.get(), buf.get() + strSize - 1); // -1 for \0''
-
-        gPrintInputFormattedMessages->push_back(str);
-    }
-
-    // always log too - should log to some file probably
-    utils::log(fmt, args...);
+    printStr(str);
 }
-
-void printCharacters( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar = '\n');
-
-void printCharactersHex( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar = '\n');
 
 } // namespace ui

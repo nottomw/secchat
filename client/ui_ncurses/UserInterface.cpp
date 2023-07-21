@@ -4,13 +4,15 @@
 #include "Utils.hpp"
 
 #include <iomanip>
+#include <mutex>
 #include <ncurses.h>
 #include <sstream>
 
 namespace ui
 {
 
-std::vector<std::string> *gPrintInputFormattedMessages = nullptr;
+std::mutex gPrintInputFormattedMessagesMutex;
+std::vector<std::string> gPrintInputFormattedMessages;
 
 void handleCtrlC(int /*signal*/)
 {
@@ -26,21 +28,23 @@ void stopUserInterface()
 
 static void drawChatWindow( //
     WINDOW *chatWin,
-    const std::vector<std::string> &formattedMessages,
     int chatHeight,
     int /*chatWidth*/)
 {
     wclear(chatWin);
     box(chatWin, 0, 0);
 
-    int numMessages = formattedMessages.size();
-    int startRow = std::max(0, numMessages - chatHeight + 2);
-
-    int y = 1;
-    for (int i = startRow, row = 0; i < numMessages && row < chatHeight - 2; ++i, ++row)
     {
-        const auto &msg = formattedMessages[i];
-        mvwprintw(chatWin, y + row, 1, "%s", msg.c_str());
+        std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
+        int numMessages = gPrintInputFormattedMessages.size();
+
+        int startRow = std::max(0, numMessages - chatHeight + 2);
+        int y = 1;
+        for (int i = startRow, row = 0; i < numMessages && row < chatHeight - 2; ++i, ++row)
+        {
+            const auto &msg = gPrintInputFormattedMessages[i];
+            mvwprintw(chatWin, y + row, 1, "%s", msg.c_str());
+        }
     }
 
     wrefresh(chatWin);
@@ -64,7 +68,7 @@ static bool initializeChatTUI( //
     if (!has_colors())
     {
         endwin();
-        utils::log("Error: Terminal does not support color.\n");
+        utils::log("Error: Terminal does not support color.");
         return false;
     }
 
@@ -101,13 +105,33 @@ static bool initializeChatTUI( //
     return true;
 }
 
+static void scrollbackCleanupIfTooBig()
+{
+    {
+        std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
+
+        constexpr int kMaxScrollbackLines = 100;
+        if (gPrintInputFormattedMessages.size() > kMaxScrollbackLines)
+        {
+            const int toBeErased = (gPrintInputFormattedMessages.size() - kMaxScrollbackLines);
+            gPrintInputFormattedMessages.erase(gPrintInputFormattedMessages.begin(),
+                                               gPrintInputFormattedMessages.begin() + toBeErased);
+        }
+    }
+}
+
+static void scrollbackAddMessage(const std::string &msg)
+{
+    std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
+    gPrintInputFormattedMessages.push_back(msg);
+}
+
 static void runChatTUI( //
     WINDOW *chatWin,
     WINDOW *inputWin,
     int &chatHeight,
     int &chatWidth,
     SecchatClient &client,
-    std::vector<std::string> &formattedMessagesToTUI,
     const std::string &joinedRoom,
     const std::string &userName)
 {
@@ -121,15 +145,10 @@ static void runChatTUI( //
     bool tuiShouldRun = true;
     while (tuiShouldRun)
     {
-        // Clear the scrollback if it's too big
-        constexpr int kMaxScrollbackLines = 100;
-        if (formattedMessagesToTUI.size() > kMaxScrollbackLines)
-        {
-            const int toBeErased = (formattedMessagesToTUI.size() - kMaxScrollbackLines);
-            formattedMessagesToTUI.erase(formattedMessagesToTUI.begin(), formattedMessagesToTUI.begin() + toBeErased);
-        }
 
-        drawChatWindow(chatWin, formattedMessagesToTUI, chatHeight, chatWidth);
+        scrollbackCleanupIfTooBig();
+
+        drawChatWindow(chatWin, chatHeight, chatWidth);
 
         mvwprintw(inputWin, //
                   1,
@@ -165,7 +184,7 @@ static void runChatTUI( //
                     // add the message to the chat
                     const std::string formattedMessage = //
                         utils::formatChatMessage(joinedRoom, userName, inputText);
-                    formattedMessagesToTUI.push_back(formattedMessage);
+                    scrollbackAddMessage(formattedMessage);
 
                     const bool sendOk = client.sendMessage(joinedRoom, inputText);
                     if (!sendOk)
@@ -173,9 +192,9 @@ static void runChatTUI( //
                         std::stringstream ss;
                         ss << "[client] sending ";
                         ss << inputText;
-                        ss << " failed...\n";
+                        ss << " failed...";
 
-                        formattedMessagesToTUI.push_back(ss.str());
+                        scrollbackAddMessage(ss.str());
                     }
 
                     // move cursor back to default
@@ -277,8 +296,6 @@ bool runChatUserInterface( //
     int chatHeight = 0;
     int chatWidth = 0;
 
-    assert(gPrintInputFormattedMessages != nullptr);
-
     const bool tuiStarted = //
         initializeChatTUI(chatWin, inputWin, chatHeight, chatWidth);
     if (!tuiStarted)
@@ -292,58 +309,18 @@ bool runChatUserInterface( //
         chatHeight,
         chatWidth,
         client,
-        *gPrintInputFormattedMessages,
         joinedRoom,
         userName);
 
     return true;
 }
 
-void initialize(std::vector<std::string> &formattedMessagesToUI)
+void printStr(const std::string &str)
 {
-    gPrintInputFormattedMessages = &formattedMessagesToUI;
-}
-
-void printCharacters( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar)
-{
-    std::stringstream ss;
-
-    for (uint32_t i = 0; i < bufferSize; ++i)
     {
-        const char charToPrint = isprint(buffer[i]) ? buffer[i] : 'X';
-        ss << charToPrint;
+        std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
+        gPrintInputFormattedMessages.push_back(str);
     }
-
-    if (lastChar != '\0')
-    {
-        ss << lastChar;
-    }
-
-    ui::print("%s", ss.str().c_str());
-}
-
-void printCharactersHex( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar)
-{
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-
-    for (uint32_t i = 0; i < bufferSize; ++i)
-    {
-        ss << std::setw(2) << static_cast<uint32_t>(buffer[i]) << " ";
-    }
-
-    if (lastChar != '\0')
-    {
-        ss << lastChar;
-    }
-
-    ui::print("%s", ss.str().c_str());
 }
 
 } // namespace ui

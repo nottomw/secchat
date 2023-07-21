@@ -26,18 +26,15 @@ int main(int argc, char **argv)
         room = argv[2];
     }
 
-    std::vector<std::string> formattedMessagesToUI;
-    ui::initialize(formattedMessagesToUI);
+    ui::print("[client] username: %s, room: %s", userName.c_str(), room.c_str());
 
-    ui::print("[client] username: %s, room: %s\n", userName.c_str(), room.c_str());
-
-    SecchatClient client{formattedMessagesToUI};
+    SecchatClient client;
     client.connectToServer("127.0.0.1", 12345);
 
     const bool chatStartOk = client.startChat(userName);
     if (!chatStartOk)
     {
-        ui::print("[client] timeout on user connect - no ack received from server?\n");
+        ui::print("[client] timeout on user connect - no ack received from server?");
         ui::stopUserInterface();
         return 0;
     }
@@ -45,12 +42,12 @@ int main(int argc, char **argv)
     const bool joined = client.joinRoom(room);
     if (!joined)
     {
-        ui::print("[client] could not join room %s\n", room.c_str());
+        ui::print("[client] could not join room %s", room.c_str());
         ui::stopUserInterface();
         return 0;
     }
 
-    ui::print("[client] now chatting in %s\n", room.c_str());
+    ui::print("[client] now chatting in %s...", room.c_str());
 
     ui::runChatUserInterface( //
         client,

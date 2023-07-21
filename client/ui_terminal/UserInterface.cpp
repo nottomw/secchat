@@ -5,11 +5,13 @@
 
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <thread>
 
 namespace ui
 {
 
+std::mutex gPrintInputFormattedMessagesMutex;
 std::vector<std::string> *gPrintInputFormattedMessages = nullptr;
 
 void handleCtrlC(int /*signal*/)
@@ -41,14 +43,16 @@ bool runChatUserInterface( //
         {
             // TODO: race cond for "formattedMessagesToUI", needs to be fixed ASAP
 
-            for (const auto &msg : *gPrintInputFormattedMessages)
             {
-                utils::log("%s\n", msg.c_str());
-            }
+                std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
 
-            gPrintInputFormattedMessages->erase( //
-                gPrintInputFormattedMessages->begin(),
-                gPrintInputFormattedMessages->end());
+                for (const auto &msg : *gPrintInputFormattedMessages)
+                {
+                    utils::log("%s", msg.c_str());
+                }
+
+                gPrintInputFormattedMessages->clear();
+            }
 
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
@@ -76,7 +80,7 @@ bool runChatUserInterface( //
         const bool sendOk = client.sendMessage(joinedRoom, inputText);
         if (!sendOk)
         {
-            utils::log("[client] sending %s failed...\n", inputText.c_str());
+            utils::log("[client] sending %s failed...", inputText.c_str());
         }
     }
 
@@ -85,20 +89,15 @@ bool runChatUserInterface( //
     return true;
 }
 
-void printCharacters( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar)
+void printStr(const std::string &str)
 {
-    utils::printCharacters(buffer, bufferSize, lastChar);
-}
-
-void printCharactersHex( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
-    const char lastChar)
-{
-    utils::printCharactersHex(buffer, bufferSize, lastChar);
+    if (gPrintInputFormattedMessages != nullptr)
+    {
+        {
+            std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
+            gPrintInputFormattedMessages->push_back(str);
+        }
+    }
 }
 
 } // namespace ui

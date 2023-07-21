@@ -10,20 +10,18 @@ SecchatServer::SecchatServer()
 {
     if (!crypto::init())
     {
-        utils::log("[server] crypto init failed\n");
+        utils::log("[server] crypto init failed");
         assert(false); // fatal error...
     }
 
-    utils::log("[server] -- crypto keys begin --\n");
-    utils::log("[server] crypto: generatic signing key pair, pub:\n");
     mKeyMyAsymSign = crypto::keygenAsymSign();
-    utils::printCharactersHex(mKeyMyAsymSign.mKeyPub, crypto::kPubKeySignatureByteCount);
-
-    utils::log("[server] crypto: generatic encrypting key pair, pub:\n");
     mKeyMyAsym = crypto::keygenAsym();
-    utils::printCharactersHex(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
 
-    utils::log("[server] -- crypto keys end --\n");
+    const std::string keySignPubStrHex = utils::formatCharactersHex(mKeyMyAsymSign.mKeyPub, 5);
+    const std::string keyEncrPubStrHex = utils::formatCharactersHex(mKeyMyAsym.mKeyPub, 5);
+
+    utils::log("[server] SERVERS CRYPTO KEY: sign pub key: [ %s ]", keySignPubStrHex.c_str());
+    utils::log("[server] SERVERS CRYPTO KEY: encr pub key: [ %s ]", keyEncrPubStrHex.c_str());
 }
 
 void SecchatServer::start(const uint16_t serverPort)
@@ -31,7 +29,7 @@ void SecchatServer::start(const uint16_t serverPort)
     mTransport.serve(serverPort);
 
     mTransport.onServerConnect( //
-        [&] { utils::log("[server] accepting new connection...\n"); });
+        [&] { utils::log("[server] accepting new connection..."); });
 
     mTransport.onDisconnect( //
         [&](std::weak_ptr<Session> session) {
@@ -80,6 +78,32 @@ SecchatServer::User &SecchatServer::findUserById(const SecchatServer::UserId use
     assert(nullptr == "findUserById - user not found");
 }
 
+std::optional<SecchatServer::User *> SecchatServer::findUserByName(const std::string &userName)
+{
+    for (auto &user : mUsers)
+    {
+        if (user.mUserName == userName)
+        {
+            return &user;
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<SecchatServer::Room *> SecchatServer::findRoomByName(const std::string &roomName)
+{
+    for (auto &it : mRooms)
+    {
+        if (it.roomName == roomName)
+        {
+            return &it;
+        }
+    }
+
+    return std::nullopt;
+}
+
 void SecchatServer::handlePacket( //
     const uint8_t *const data,
     const uint32_t dataLen,
@@ -107,9 +131,19 @@ void SecchatServer::handlePacket( //
                 handleMessageToChatRoom(framesIt, session, dataOffset);
                 break;
 
+            case Proto::PayloadType::kChatGroupSymKeyRequest:
+                handleChatGroupSymKeyRequest(framesIt);
+                break;
+
+            case Proto::PayloadType::kChatGroupSymKeyResponse:
+                handleChatGroupSymKeyResponse(framesIt, dataOffset);
+                break;
+
             default:
-                utils::log("[server] incorrect frame, NOT HANDLED: ");
-                utils::printCharactersHex(dataOffset, framesIt.getSize());
+                const std::string invalidFrameStrHex = //
+                    utils::formatCharactersHex(data, dataLen);
+                utils::log("[server] received incorrect frame, drop: [%s]",
+                           invalidFrameStrHex.c_str());
                 break;
         }
 
@@ -127,12 +161,11 @@ void SecchatServer::handleNewUser( //
     Proto::PayloadUserConnect newUserFrame = //
         Proto::deserializeUserConnect(payload.payload.get(), payloadSize);
 
-    utils::log("[server] received pubsign/pub keys from %s\n", newUserFrame.userName.c_str());
-    utils::log("[server] client sign pubkey:\n");
-    utils::printCharactersHex(newUserFrame.pubSignKey, crypto::kPubKeySignatureByteCount);
-
-    utils::log("[server] client encrypt pubkey:\n");
-    utils::printCharactersHex(newUserFrame.pubEncryptKey, crypto::kPubKeyByteCount);
+    const std::string signKeyHex = utils::formatCharactersHex(newUserFrame.pubSignKey, 5);
+    const std::string encryptKeyHex = utils::formatCharactersHex(newUserFrame.pubEncryptKey, 5);
+    utils::log("[server] received user pubsign [ %s ] and pub encrypt [ %s ] keys", //
+               signKeyHex.c_str(),
+               encryptKeyHex.c_str());
 
     crypto::KeyAsym userEncryptionPubKey;
 
@@ -148,7 +181,8 @@ void SecchatServer::handleNewUser( //
 
         userEncryptionPubKey = user->keyEncrypt;
 
-        utils::log("[server] user %s already exists (for now update the session)\n", newUserFrame.userName.c_str());
+        utils::log("[server] user %s already exists (for now update the session)",
+                   newUserFrame.userName.c_str());
     }
     else
     {
@@ -166,8 +200,9 @@ void SecchatServer::handleNewUser( //
         mUsers.push_back(std::move(user));
         usersCount = mUsers.size();
 
-        utils::log("[server] new user created: %s, pubsign/pub keys received\n", newUserFrame.userName.c_str());
-        utils::log("[server] currently %d users active\n", usersCount);
+        utils::log("[server] new user created: %s, pubsign/pub keys received",
+                   newUserFrame.userName.c_str());
+        utils::log("[server] currently %d users active", usersCount);
     }
 
     // reply with server's pubsign/pub keys (encrypted with users's pub key)
@@ -204,8 +239,9 @@ void SecchatServer::handleJoinChatRoom( //
     auto userOk = verifyUserExists(userName);
     if (!userOk)
     {
-        utils::log("[server] user %s requested to join some room, but user not registered yet, DROP\n", //
-                   userName.c_str());
+        utils::log(
+            "[server] user %s requested to join some room, but user not registered yet, DROP", //
+            userName.c_str());
         return;
     }
 
@@ -223,7 +259,7 @@ void SecchatServer::handleJoinChatRoom( //
         decrypted.dataSize);
     if (!nonsignedDataOpt)
     {
-        utils::log("[server] signature verification failed, source: %s\n", userName.c_str());
+        utils::log("[server] signature verification failed, source: %s", userName.c_str());
         return;
     }
 
@@ -232,7 +268,7 @@ void SecchatServer::handleJoinChatRoom( //
     Proto::PayloadJoinReqAck join = //
         Proto::deserializeJoinReqAck(nonsignedData.data.get(), nonsignedData.dataSize);
 
-    utils::log("[server] chatroom join requested from user %s, room name: %s\n", //
+    utils::log("[server] chatroom join requested from user %s, room name: %s", //
                userName.c_str(),
                join.roomName.c_str());
 
@@ -248,7 +284,7 @@ void SecchatServer::handleJoinChatRoom( //
         // if new room creation - request sym key generate too
         if (newRoomCreated)
         {
-            utils::log("[server] new room created, requesting sym key generation from user %s\n", //
+            utils::log("[server] new room created, requesting sym key generation from user %s", //
                        userName.c_str());
         }
 
@@ -285,10 +321,11 @@ void SecchatServer::handleMessageToChatRoom( //
     userName.assign(header.source.get(), header.sourceSize);
     roomName.assign(header.destination.get(), header.destinationSize);
 
-    utils::log("[server] RX MSG: [%s]<%s>:\n", //
+    const auto msgStr = utils::formatCharacters(payload.payload.get(), payload.size);
+    utils::log("[server] RX MSG: [%s]<%s>: %s", //
                roomName.c_str(),
-               userName.c_str());
-    utils::printCharacters(payload.payload.get(), payload.size);
+               userName.c_str(),
+               msgStr.c_str());
 
     // TODO: mRooms must be a map...
     auto foundRoom = std::find(mRooms.begin(), mRooms.end(), roomName);
@@ -319,6 +356,127 @@ void SecchatServer::handleMessageToChatRoom( //
         const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
         assert(sendOk);
     }
+}
+
+void SecchatServer::handleChatGroupSymKeyRequest( //
+    Proto::Frame &frame)
+{
+    Proto::Header &header = frame.getHeader();
+    Proto::Payload &payload = frame.getPayload();
+
+    const std::string source{header.source.get(), header.sourceSize};
+    utils::log("[server] received sym key request from %s", source.c_str());
+
+    auto userOk = verifyUserExists(source);
+    if (!userOk)
+    {
+        utils::log("[server] user %s does not exist, drop", source.c_str());
+        return;
+    }
+
+    const User *userHandleSource = *userOk;
+
+    auto decrypted = //
+        crypto::asymDecrypt(mKeyMyAsym, payload.payload.get(), payload.size);
+
+    auto unsignedPay =
+        crypto::signedVerify(userHandleSource->keySign, decrypted.data.get(), decrypted.dataSize);
+    if (!unsignedPay)
+    {
+        utils::log("[server] signature verification failed for sym key request, drop");
+        return;
+    }
+
+    const std::string roomName{(char *)unsignedPay->data.get(), unsignedPay->dataSize};
+
+    auto roomHandleOpt = findRoomByName(roomName);
+    if (!roomHandleOpt)
+    {
+        utils::log("[server] room %s not found, drop", roomName.c_str());
+        return;
+    }
+
+    auto roomHandle = *roomHandleOpt;
+
+    // at this point at least a single user should be joined
+    assert(roomHandle->mJoinedUsers.size() != 0);
+
+    // find user to send the key request to
+    // for now just grab the first user in list
+    UserId randomUserId = roomHandle->mJoinedUsers[0];
+
+    auto &requestDestinationUserId = findUserById(randomUserId);
+
+    // broadcast public keys to both requesting user and sending user
+
+    sendUserKeysToUser(requestDestinationUserId.keySign, //
+                       requestDestinationUserId.keyEncrypt,
+                       requestDestinationUserId.mUserName,
+                       source,
+                       userHandleSource);
+
+    sendUserKeysToUser(userHandleSource->keySign, //
+                       userHandleSource->keyEncrypt,
+                       userHandleSource->mUserName,
+                       requestDestinationUserId.mUserName,
+                       &requestDestinationUserId);
+
+    utils::log("[server] request sym key for room %s from user %s", //
+               roomName.c_str(),
+               source.c_str());
+
+    {
+        Proto::Frame frame;
+        Proto::populateHeader(frame, source, requestDestinationUserId.mUserName);
+
+        Proto::populatePayloadCurrentSymKeyRequest( //
+            frame,
+            roomName,
+            mKeyMyAsymSign,
+            requestDestinationUserId.keyEncrypt,
+            userHandleSource->keyEncrypt);
+
+        std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
+        assert(buffer);
+
+        // TODO: weak/shared confusion
+        std::shared_ptr<Session> sharedSession{requestDestinationUserId.mSession};
+        const bool sendOk =          //
+            mTransport.sendBlocking( //
+                buffer.get(),
+                frame.getSize(),
+                sharedSession);
+
+        (void)sendOk;
+    }
+}
+
+void SecchatServer::handleChatGroupSymKeyResponse( //
+    Proto::Frame &frame,
+    const uint8_t *const rawBuffer)
+{
+    Proto::Header &header = frame.getHeader();
+
+    const std::string source{(char *)header.source.get(), header.sourceSize};
+    const std::string dest{(char *)header.destination.get(), header.destinationSize};
+
+    utils::log("[server] forwarding sym key from user %s to user %s", //
+               source.c_str(),
+               dest.c_str());
+
+    // find the destination users's session
+    auto userHandleOpt = findUserByName(dest);
+    if (!userHandleOpt)
+    {
+        utils::log("[server] user %s not found, drop", dest.c_str());
+        return;
+    }
+
+    User *userHandle = *userHandleOpt;
+
+    // TODO: shared weak confusion
+    std::shared_ptr<Session> userSession{userHandle->mSession};
+    mTransport.sendBlocking(rawBuffer, frame.getSize(), userSession);
 }
 
 bool SecchatServer::joinUserToRoom( //
@@ -352,13 +510,13 @@ bool SecchatServer::joinUserToRoom( //
 
         if (joinedUser)
         {
-            utils::log("[server] room already exists - user already joined, DROP\n");
+            utils::log("[server] room already exists - user already joined, DROP");
             return true;
         }
         else
         {
             room->get().mJoinedUsers.push_back(user.id);
-            utils::log("[server] room already exists - user joined\n");
+            utils::log("[server] room already exists - user joined");
 
             return true;
         }
@@ -450,7 +608,7 @@ void SecchatServer::cleanupDisconnectedUsers()
                             if ((!userSessionPtr) || //
                                 (userSessionPtr->getId() == invalidatedSessionId))
                             {
-                                utils::log("[server] removing user %s from room %s\n", //
+                                utils::log("[server] removing user %s from room %s", //
                                            user.mUserName.c_str(),
                                            roomIt.roomName.c_str());
 
@@ -460,6 +618,12 @@ void SecchatServer::cleanupDisconnectedUsers()
                             return false; // dont remove
                         }),
                     joinedUsers.end());
+
+                if (joinedUsers.size() == 0)
+                {
+                    utils::log("[server] the room %s is now empty, should remove?",
+                               roomIt.roomName.c_str());
+                }
             }
 
             // TODO: persistency - user should not be removed here, instead
@@ -475,7 +639,8 @@ void SecchatServer::cleanupDisconnectedUsers()
                                    if ((!userSessionPtr) || //
                                        (userSessionPtr->getId() == invalidatedSessionId))
                                    {
-                                       utils::log("[server] removing user %s\n", user.mUserName.c_str());
+                                       utils::log("[server] removing user %s",
+                                                  user.mUserName.c_str());
                                        return true; // remove
                                    }
 
@@ -483,11 +648,67 @@ void SecchatServer::cleanupDisconnectedUsers()
                                }),
                 mUsers.end());
 
-            utils::log("[server] currently %d users active\n", mUsers.size());
+            utils::log("[server] currently %d users active", mUsers.size());
         }
 
         mSessionsToCollect.clear();
     }
+}
+
+void SecchatServer::sendUserKeysToUser( //
+    const crypto::KeyAsymSignature &keysToSendSign,
+    const crypto::KeyAsym &keysToSendEncrypt,
+    const std::string &userNameSrc,
+    const std::string &userNameDest,
+    const SecchatServer::User *const userHandleDest)
+{
+    const SecchatServer::User *userHandleDestFound = userHandleDest;
+    if (userHandleDest == nullptr)
+    {
+        assert(nullptr == "TODO TODO TODO TODO TODO TODO TODO");
+        // have to find dest user by name
+    }
+
+    utils::log("[server] forwarding user's %s pubkeys to %s", //
+               userNameSrc.c_str(),
+               userNameDest.c_str());
+
+    Proto::Frame userKeysframe;
+    Proto::populateHeader(userKeysframe, userNameSrc, userNameDest);
+
+    const uint32_t payloadKeysSize = crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
+    utils::ByteArray baKeys{payloadKeysSize};
+    uint8_t *payloadKeys = baKeys.data.get();
+
+    memcpy( //
+        payloadKeys,
+        keysToSendSign.mKeyPub,
+        crypto::kPubKeySignatureByteCount);
+    memcpy( //
+        payloadKeys + crypto::kPubKeySignatureByteCount,
+        keysToSendEncrypt.mKeyPub,
+        crypto::kPubKeyByteCount);
+
+    // signing & encrypting with server keys?
+    auto signedKeys = //
+        crypto::sign(mKeyMyAsymSign, payloadKeys, payloadKeysSize);
+    auto encryptedKeys =
+        crypto::asymEncrypt(userHandleDest->keyEncrypt, signedKeys.data.get(), signedKeys.dataSize);
+
+    Proto::populatePayload( //
+        userKeysframe,
+        Proto::PayloadType::kChatGroupSymKeyReplyUserKey,
+        encryptedKeys.data.get(),
+        encryptedKeys.dataSize);
+
+    auto serializedUserKeysFrame = Proto::serialize(userKeysframe);
+
+    // TODO: weak/shared confusion
+    std::shared_ptr<Session> ses{userHandleDestFound->mSession};
+    mTransport.sendBlocking( //
+        serializedUserKeysFrame.get(),
+        userKeysframe.getSize(),
+        ses);
 }
 
 SecchatServer::User::User()
