@@ -438,8 +438,6 @@ utils::ByteArray Proto::serializeRequestCurrentSymKey(
     memcpy(&ba.data[offset], payload.pubEncryptKey, crypto::kPubKeyByteCount);
 
     return ba;
-
-    return ba;
 }
 
 Proto::PayloadRequestCurrentSymKey Proto::deserializeRequestCurrentSymKey( //
