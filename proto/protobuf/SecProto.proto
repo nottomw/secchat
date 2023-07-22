@@ -2,7 +2,6 @@ syntax = "proto2";
 
 package proto;
 
-// TODO: maybe rename to SecFrame
 message Frame {
     required uint64 protoVersion = 1;
     required uint64 timestampSend = 2;
@@ -26,6 +25,7 @@ message PayloadJoinRequestOrAck {
     optional bool newRoom = 2;
 }
 
+// PayloadRequestCurrentSymKey
 message PayloadChatGroupCurrentSymKeyRequestOrResponse {
     required string roomName = 1;
     optional bytes key = 2; // crypto::kSymKeyByteCount

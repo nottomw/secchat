@@ -12,6 +12,8 @@ target_include_directories(proto
 )
 
 target_link_libraries(proto
+    PUBLIC
+        secchat::proto_generated
     PRIVATE
         secchat::crypto
         secchat::utils
