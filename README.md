@@ -9,6 +9,7 @@ Fun with crypto and networking.
 Currently used libs:
 - net: `Asio` (not boost::asio)
 - crypto: `libsodium`
+- serdes: `protobuf`
 - UI: `ncurses` ( ;) )
 
 Packages fetched by `cmake` with `conan`.
