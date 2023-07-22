@@ -694,12 +694,7 @@ void SecchatServer::sendUserKeysToUser( //
     const std::string &userNameDest,
     const SecchatServer::User *const userHandleDest)
 {
-    const SecchatServer::User *userHandleDestFound = userHandleDest;
-    if (userHandleDest == nullptr)
-    {
-        assert(nullptr == "TODO TODO TODO TODO TODO TODO TODO");
-        // have to find dest user by name
-    }
+    assert(userHandleDest != nullptr);
 
     utils::log("[server] forwarding user's %s pubkeys to %s", //
                userNameSrc.c_str(),
@@ -738,7 +733,7 @@ void SecchatServer::sendUserKeysToUser( //
     const bool sendOk = mTransport.sendBlocking( //
         serializedUserKeysFrame.get(),
         userKeysframe.getSize(),
-        userHandleDestFound->mSession);
+        userHandleDest->mSession);
     if (sendOk == false)
     {
         utils::log("[server] failed to send pub keys of user %s to %s",
