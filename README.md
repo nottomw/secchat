@@ -11,6 +11,8 @@ Currently used libs:
 - crypto: `libsodium`
 - UI: `ncurses` ( ;) )
 
+Packages fetched by `cmake` with `conan`.
+
 ## Build
 ```
 $ mkdir build
