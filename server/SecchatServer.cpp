@@ -417,18 +417,17 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
         requestDestinationUserId = &joinedUser; // found one
     }
 
-    if (requestDestinationUserId == nullptr)
-    {
-        // looks like just joined user is the only one here
-        // request generate of new sym key
-        utils::log("re-requesting new sym key....");
-        requestNewSymKeyFromUser(roomName, *userHandleSource);
-        return;
-    }
-
     utils::log("[server] request sym key for room %s from user %s", //
                roomName.c_str(),
                source.c_str());
+
+    if (requestDestinationUserId == nullptr)
+    {
+        // looks like just joined user is the only one here,
+        // the new sym key generation needs to requested from him
+        utils::log("[server] user %s is the only user in this room, drop request", source.c_str());
+        return;
+    }
 
     Proto::Frame frameSymKeyRequest;
     Proto::populateHeader(frameSymKeyRequest, source, requestDestinationUserId->mUserName);
@@ -511,6 +510,17 @@ bool SecchatServer::joinUserToRoom( //
         {
             room->mJoinedUsers.push_back(user.id);
             utils::log("[server] room already exists - user joined");
+
+            const uint32_t joinedUsersCount = room->mJoinedUsers.size();
+            if (joinedUsersCount == 1)
+            {
+                utils::log("[server] just joined user is the only user in this room");
+                utils::log("[server] the room was already created, but for now simulating new room "
+                           "create");
+
+                // TODO: should be handled nicer
+                newRoomCreated = true;
+            }
 
             return true;
         }
