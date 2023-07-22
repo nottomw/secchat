@@ -352,8 +352,6 @@ void SecchatServer::handleMessageToChatRoom( //
             continue;
         }
 
-        // TODO: should modify the "destination" in header here
-
         const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
         if (sendOk == false)
         {
@@ -514,7 +512,7 @@ bool SecchatServer::joinUserToRoom( //
                 utils::log("[server] the room was already created, but for now simulating new room "
                            "create");
 
-                // TODO: should be handled nicer
+                // TODO: this is a hack, should be handled nicer
                 newRoomCreated = true;
             }
 
@@ -660,7 +658,7 @@ void SecchatServer::cleanupDisconnectedUsers()
             }
 
             // TODO: persistency - user should not be removed here, instead
-            // the already created user should keep hold of he's keys and
+            // the already created user should keep hold of his keys and
             // resend them on creation of new user.
 
             mUsers.erase(                      //

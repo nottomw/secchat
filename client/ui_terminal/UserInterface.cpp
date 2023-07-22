@@ -36,8 +36,6 @@ bool runChatUserInterface( //
     std::thread screen{[&] {
         while (screenShouldWork)
         {
-            // TODO: race cond for "formattedMessagesToUI", needs to be fixed ASAP
-
             {
                 std::lock_guard<std::mutex> lk{gPrintInputFormattedMessagesMutex};
 
