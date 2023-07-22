@@ -8,11 +8,6 @@
 #include <string>
 #include <vector>
 
-namespace crypto
-{
-struct KeyAsym;
-}
-
 // TODO: all of this needs to be thoroughly size-checked
 // TODO: use some serialization lib (nanoprotobuf? FlatBuffers? capnproto?) instead of this
 // horrendous code
@@ -42,12 +37,12 @@ public:
         kChatRoomJoined, // from server, acknowledge room join
         kChatRoomLeave,  // from user
 
-        // TODO: requested user should get a prompt (yes/no) to confirm he wants to provide the keys
-        kChatGroupSymKeyRequest,  // from user, request sym key, sent to random N users (or chat
-                                  // owner?)
-        kUserPubKeys,             // from server, send other user pub key to requesting user
-        kChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user
-                                  // pubkey
+        // TODO: user should get a prompt (yes/no) to confirm he wants to provide the keys?
+        kChatGroupCurrentSymKeyRequest,  // from user, request sym key, sent to server, server
+                                         // forwards
+        kUserPubKeys,                    // from server, send other user pub key to requesting user
+        kChatGroupCurrentSymKeyResponse, // from user, respond with asym key encrypted with
+                                         // requesting user pubkey
 
         // ------ ENCRYPTED messages sym, signed asym by sender:
 
@@ -223,4 +218,10 @@ public:
     static utils::ByteArray serializeMessage(const PayloadMessage &payload);
     static PayloadMessage deserializeMessage(const uint8_t *const buffer,
                                              const uint32_t bufferSize);
+
+    // TODO:
+    // bool frameSignAndEncrypt(
+    //  Frame &frame,
+    //  const crypto::KeyAsymSignature &payloadSignKey, const
+    //  crypto::KeyAsym &payloadEncryptKey);
 };

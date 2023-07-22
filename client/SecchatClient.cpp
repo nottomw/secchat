@@ -151,11 +151,11 @@ void SecchatClient::handlePacket( //
                 handleUserPubKeys(framesIt);
                 break;
 
-            case Proto::PayloadType::kChatGroupSymKeyRequest:
+            case Proto::PayloadType::kChatGroupCurrentSymKeyRequest:
                 handleCurrentSymKeyRequest(framesIt);
                 break;
 
-            case Proto::PayloadType::kChatGroupSymKeyResponse:
+            case Proto::PayloadType::kChatGroupCurrentSymKeyResponse:
                 handleCurrentSymKeyResponse(framesIt);
                 break;
 
@@ -307,7 +307,7 @@ void SecchatClient::requestCurrentSymKey(const std::string &roomName)
 
     Proto::populatePayload( //
         frame,
-        Proto::PayloadType::kChatGroupSymKeyRequest,
+        Proto::PayloadType::kChatGroupCurrentSymKeyRequest,
         (uint8_t *)encryptedPayload.data.get(),
         encryptedPayload.dataSize);
 
@@ -403,7 +403,7 @@ void SecchatClient::handleCurrentSymKeyRequest(Proto::Frame &frame)
         symKeySigned.dataSize);
 
     Proto::populatePayload(symKeyReply,
-                           Proto::PayloadType::kChatGroupSymKeyResponse,
+                           Proto::PayloadType::kChatGroupCurrentSymKeyResponse,
                            symKeyEncrypted.data.get(),
                            symKeyEncrypted.dataSize);
 

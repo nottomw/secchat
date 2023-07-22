@@ -194,7 +194,7 @@ void Proto::populatePayloadCurrentSymKeyRequest( //
         crypto::asymEncrypt(payloadEncryptKey, signedReq.data.get(), signedReq.dataSize);
 
     Payload &pay = frame.getPayload();
-    pay.type = Proto::PayloadType::kChatGroupSymKeyRequest;
+    pay.type = Proto::PayloadType::kChatGroupCurrentSymKeyRequest;
     pay.payload = std::move(encryptedReq.data);
     pay.size = encryptedReq.dataSize;
 }

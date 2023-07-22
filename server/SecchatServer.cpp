@@ -131,11 +131,11 @@ void SecchatServer::handlePacket( //
                 handleMessageToChatRoom(framesIt, session, dataOffset);
                 break;
 
-            case Proto::PayloadType::kChatGroupSymKeyRequest:
+            case Proto::PayloadType::kChatGroupCurrentSymKeyRequest:
                 handleChatGroupSymKeyRequest(framesIt);
                 break;
 
-            case Proto::PayloadType::kChatGroupSymKeyResponse:
+            case Proto::PayloadType::kChatGroupCurrentSymKeyResponse:
                 handleChatGroupSymKeyResponse(framesIt, dataOffset);
                 break;
 
