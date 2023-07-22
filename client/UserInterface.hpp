@@ -28,16 +28,15 @@ void printStr(const std::string &str);
 template <typename... Ts>
 void print(const char *const fmt, Ts... args)
 {
-    // TODO: fix q&d ui print
-
     const int strSize = std::snprintf(nullptr, 0, fmt, args...) + 1; // +1 for '\0'
     if (strSize == 0)
     {
-        ui::print("[utils] tried to print %s which snprintf calculated to size 0", fmt);
+        ui::print("[utils] tried to print '%s' which snprintf calculated to size 0", fmt);
+        return;
     }
 
     std::unique_ptr<char[]> buf(new char[strSize]);
-    std::snprintf(buf.get(), strSize, fmt, args...);
+    std::snprintf(buf.get(), strSize - 1, fmt, args...);
     std::string str(buf.get(), buf.get() + strSize - 1); // -1 for \0''
 
     printStr(str);
