@@ -60,7 +60,7 @@ asio::ip::tcp::socket &Session::getSocket()
 
 void Session::invalidate()
 {
-    utils::log("[session] INVALIDATED: %d", mSessionId);
+    utils::log("[session] INVALIDATED session id #%d", mSessionId);
     mValid = false; // scheduled for disposal
 }
 

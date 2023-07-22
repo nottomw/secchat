@@ -88,49 +88,54 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
 {
     // sending to all session sockets here
 
-    for (auto &it : mSessions)
     {
-        asio::error_code err;
+        // pretty big lock...
+        std::lock_guard<std::mutex> lk{mSessionsMutex};
 
-        auto &sock = it->getSocket();
-        auto buf = asio::buffer(buffer, bufferLen);
-        size_t wrote = 0;
+        for (auto &it : mSessions)
+        {
+            asio::error_code err;
 
-        try
-        {
-            wrote = asio::write(sock, buf, err);
-        }
-        catch (...)
-        {
-            // got some error, probably peer disconnected already...
-            it->invalidate();
-            continue;
-        }
+            auto &sock = it->getSocket();
+            auto buf = asio::buffer(buffer, bufferLen);
+            size_t wrote = 0;
 
-        if (err == asio::error::eof)
-        {
-            it->invalidate();
-            continue;
-        }
-        else if (err)
-        {
-            utils::log("[transport] WRITE ERROR: %s, %d to session: %d", //
-                       err.message().c_str(),
-                       err.value(),
-                       it->getId());
-            it->invalidate();
-            continue;
-        }
-        else
-        {
-            // probably sesion disconnected, will be removed later
-            if (wrote != bufferLen)
+            try
             {
-                utils::log("[transport] could not send whole message to session %d (%d/%d)", //
-                           it->getId(),
-                           wrote,
-                           bufferLen);
+                wrote = asio::write(sock, buf, err);
+            }
+            catch (...)
+            {
+                // got some error, probably peer disconnected already...
+                it->invalidate();
                 continue;
+            }
+
+            if (err == asio::error::eof)
+            {
+                it->invalidate();
+                continue;
+            }
+            else if (err)
+            {
+                utils::log("[transport] WRITE ERROR: %s, %d to session: #%d", //
+                           err.message().c_str(),
+                           err.value(),
+                           it->getId());
+                it->invalidate();
+                continue;
+            }
+            else
+            {
+                // probably sesion disconnected, will be removed later
+                if (wrote != bufferLen)
+                {
+                    utils::log("[transport] could not send whole message to session #%d (%d/%d)", //
+                               it->getId(),
+                               wrote,
+                               bufferLen);
+                    continue;
+                }
             }
         }
     }
@@ -172,7 +177,7 @@ bool DataTransport::sendBlocking( //
     }
     else if (err)
     {
-        utils::log("[transport] WRITE ERROR: %s, %d to session: %d", //
+        utils::log("[transport] WRITE ERROR: %s, %d to session: #%d", //
                    err.message().c_str(),
                    err.value(),
                    session->getId());
@@ -181,7 +186,7 @@ bool DataTransport::sendBlocking( //
     }
     else if (wrote != bufferLen)
     {
-        utils::log("[transport] could not send whole message to session %d (%d/%d)", //
+        utils::log("[transport] could not send whole message to session #%d (%d/%d)", //
                    session->getId(),
                    wrote,
                    bufferLen);
@@ -300,7 +305,7 @@ void DataTransport::invalidatedSessionsCollect()
                     // are now destroyed, cannot display anything more than
                     // info on removing session
 
-                    utils::log("[session collector] removing session: %d", session->getId());
+                    utils::log("[session collector] removing session id #%d", session->getId());
 
                     removedSessions += 1U;
 

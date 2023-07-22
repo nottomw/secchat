@@ -434,7 +434,9 @@ void SecchatClient::handleCurrentSymKeyResponse(Proto::Frame &frame)
 
     memcpy(mKeyChatGroup.mKey, nonsigned->data.get(), nonsigned->dataSize);
     const auto symKeyHex = utils::formatCharactersHex(mKeyChatGroup.mKey, 5);
-    ui::print("[client] ##### RECEIVED SYM KEY [ %s ] #####", symKeyHex.c_str());
+    ui::print("[client] ##### RECEIVED SYM KEY [ %s ] from user %s #####",
+              symKeyHex.c_str(),
+              source.c_str());
 
     mSymmetricEncryptionReady = true; // we now have full encryption
 }
