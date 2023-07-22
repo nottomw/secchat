@@ -36,7 +36,7 @@ void print(const char *const fmt, Ts... args)
     }
 
     std::unique_ptr<char[]> buf(new char[strSize]);
-    std::snprintf(buf.get(), strSize - 1, fmt, args...);
+    std::snprintf(buf.get(), strSize, fmt, args...);
     std::string str(buf.get(), buf.get() + strSize - 1); // -1 for \0''
 
     printStr(str);
