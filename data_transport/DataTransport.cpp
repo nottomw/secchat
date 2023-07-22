@@ -73,7 +73,7 @@ void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
     asio::ip::tcp::socket sock(mIoContext);
     asio::connect(sock, endpoints);
 
-    auto session = std::make_shared<Session>(std::move(sock));
+    auto session = std::make_shared<Session>(std::move(sock), ipAddr);
     session->start();
 
     {
@@ -94,21 +94,45 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
 
         auto &sock = it->getSocket();
         auto buf = asio::buffer(buffer, bufferLen);
-        size_t wrote = asio::write(sock, buf, err);
+        size_t wrote = 0;
+
+        try
+        {
+            wrote = asio::write(sock, buf, err);
+        }
+        catch (...)
+        {
+            // got some error, probably peer disconnected already...
+            it->invalidate();
+            continue;
+        }
 
         if (err == asio::error::eof)
         {
             it->invalidate();
+            continue;
         }
         else if (err)
         {
             utils::log("[transport] WRITE ERROR: %s, %d to session: %s", //
                        err.message().c_str(),
                        err.value(),
-                       sock.remote_endpoint().address().to_string().c_str());
+                       it->getName());
+            it->invalidate();
+            continue;
         }
-
-        assert(wrote == bufferLen);
+        else
+        {
+            // probably sesion disconnected, will be removed later
+            if (wrote != bufferLen)
+            {
+                utils::log("[transport] could not send whole message to session %s (%d/%d)", //
+                           it->getName(),
+                           wrote,
+                           bufferLen);
+                continue;
+            }
+        }
     }
 
     return true;
@@ -123,25 +147,46 @@ bool DataTransport::sendBlocking( //
     {
         return false;
     }
+
     asio::error_code err;
 
     auto &sock = session->getSocket();
     auto buf = asio::buffer(buffer, bufferLen);
-    size_t wrote = asio::write(sock, buf, err);
+    size_t wrote = 0;
+
+    try
+    {
+        wrote = asio::write(sock, buf, err);
+    }
+    catch (...)
+    {
+        // got some error, probably peer disconnected already...
+        session->invalidate();
+        return false;
+    }
 
     if (err == asio::error::eof)
     {
         session->invalidate();
+        return false;
     }
     else if (err)
     {
         utils::log("[transport] WRITE ERROR: %s, %d to session: %s", //
                    err.message().c_str(),
                    err.value(),
-                   sock.remote_endpoint().address().to_string().c_str());
+                   session->getName());
+        session->invalidate();
+        return false;
     }
-
-    assert(wrote == bufferLen);
+    else if (wrote != bufferLen)
+    {
+        utils::log("[transport] could not send whole message to session %s (%d/%d)", //
+                   session->getName(),
+                   wrote,
+                   bufferLen);
+        return false;
+    }
 
     return true;
 }
@@ -216,7 +261,9 @@ void DataTransport::acceptHandler()
                        remoteEp.address().to_string().c_str());
 
             {
-                auto session = std::make_shared<Session>(std::move(socket));
+                auto session = std::make_shared<Session>( //
+                    std::move(socket),
+                    remoteEp.address().to_string());
                 session->start();
 
                 {
@@ -250,9 +297,13 @@ void DataTransport::invalidatedSessionsCollect()
 
                 if (!sessionValid)
                 {
-                    utils::log(
-                        "[session collector] removing session: %s",
-                        session->getSocket().remote_endpoint().address().to_string().c_str());
+                    // there is a chance that the session internals (socket)
+                    // are now destroyed, cannot display anything more than
+                    // info on removing session
+
+                    utils::log("[session collector] removing session: %s",
+                               session->getName().c_str());
+
                     removedSessions += 1U;
 
                     // Calling disconnect handler here can be pretty late, maybe

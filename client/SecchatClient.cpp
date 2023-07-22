@@ -160,10 +160,15 @@ void SecchatClient::handlePacket( //
                 break;
 
             default:
-                const std::string invalidFrameStrHex = //
-                    utils::formatCharactersHex(data, dataLen);
-                ui::print("[client] received incorrect frame, drop: [%s]",
-                          invalidFrameStrHex.c_str());
+                {
+                    const std::string invalidFrameStrHex = //
+                        utils::formatCharactersHex(data, dataLen);
+                    Proto::Header &header = framesIt.getHeader();
+                    const std::string source{header.source.get(), header.sourceSize};
+                    ui::print("[client] received incorrect frame from %s, drop: [%s]",
+                              source.c_str(),
+                              invalidFrameStrHex.c_str());
+                }
                 break;
         }
     }
@@ -470,9 +475,9 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
 
     if (mRemoteUserKeys.count(userName) == 0)
     {
-        ui::print(
-            "[client] received message from user %s, but cannot verify signature (no keys), drop",
-            userName.c_str());
+        ui::print("[client] received message from user %s, but cannot verify signature (no "
+                  "keys), drop",
+                  userName.c_str());
         return;
     }
 

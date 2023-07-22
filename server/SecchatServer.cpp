@@ -163,7 +163,8 @@ void SecchatServer::handleNewUser( //
 
     const std::string signKeyHex = utils::formatCharactersHex(newUserFrame.pubSignKey, 5);
     const std::string encryptKeyHex = utils::formatCharactersHex(newUserFrame.pubEncryptKey, 5);
-    utils::log("[server] received user pubsign [ %s ] and pub encrypt [ %s ] keys", //
+    utils::log("[server] received user %s pubsign [ %s ] and pub encrypt [ %s ] keys", //
+               newUserFrame.userName.c_str(),
                signKeyHex.c_str(),
                encryptKeyHex.c_str());
 
@@ -343,13 +344,7 @@ void SecchatServer::handleMessageToChatRoom( //
     for (const auto &userInRoomId : foundRoom->mJoinedUsers)
     {
         const User &user = findUserById(userInRoomId);
-        const auto userInRoomSession = user.mSession.lock();
-        if (!userInRoomSession)
-        {
-            // invalid session - will be collected soon
-            continue;
-        }
-
+        const auto userInRoomSession = user.mSession;
         if (*userInRoomSession == *session)
         {
             // If this is the session that we just got the message from,
@@ -380,7 +375,7 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
         return;
     }
 
-    const User *userHandleSource = *userOk;
+    User *userHandleSource = *userOk;
 
     auto decrypted = //
         crypto::asymDecrypt(mKeyMyAsym, payload.payload.get(), payload.size);
@@ -408,37 +403,54 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
     assert(roomHandle->mJoinedUsers.size() != 0);
 
     // find user to send the key request to
-    // for now just grab the first user in list
-    UserId randomUserId = roomHandle->mJoinedUsers[0];
+    // for now just grab the first user in sequence that is not just joined user
+    User *requestDestinationUserId = nullptr;
+    for (auto &joinedUsersId : roomHandle->mJoinedUsers)
+    {
+        User &joinedUser = findUserById(joinedUsersId);
+        if (joinedUser.mUserName == source)
+        {
+            // cant request sym key from myself...
+            continue;
+        }
 
-    auto &requestDestinationUserId = findUserById(randomUserId);
+        requestDestinationUserId = &joinedUser; // found one
+    }
+
+    if (requestDestinationUserId == nullptr)
+    {
+        // looks like just joined user is the only one here
+        // request generate of new sym key
+        utils::log("re-requesting new sym key....");
+        requestNewSymKeyFromUser(roomName, *userHandleSource);
+        return;
+    }
 
     utils::log("[server] request sym key for room %s from user %s", //
                roomName.c_str(),
                source.c_str());
 
+    Proto::Frame frameSymKeyRequest;
+    Proto::populateHeader(frameSymKeyRequest, source, requestDestinationUserId->mUserName);
+
+    Proto::populatePayloadCurrentSymKeyRequest( //
+        frameSymKeyRequest,
+        roomName,
+        mKeyMyAsymSign,
+        requestDestinationUserId->keyEncrypt);
+
+    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frameSymKeyRequest);
+    assert(buffer);
+
+    const bool sendOk =          //
+        mTransport.sendBlocking( //
+            buffer.get(),
+            frameSymKeyRequest.getSize(),
+            requestDestinationUserId->mSession);
+
+    if (sendOk == false)
     {
-        Proto::Frame frame;
-        Proto::populateHeader(frame, source, requestDestinationUserId.mUserName);
-
-        Proto::populatePayloadCurrentSymKeyRequest( //
-            frame,
-            roomName,
-            mKeyMyAsymSign,
-            requestDestinationUserId.keyEncrypt);
-
-        std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
-        assert(buffer);
-
-        // TODO: weak/shared confusion
-        std::shared_ptr<Session> sharedSession{requestDestinationUserId.mSession};
-        const bool sendOk =          //
-            mTransport.sendBlocking( //
-                buffer.get(),
-                frame.getSize(),
-                sharedSession);
-
-        (void)sendOk;
+        utils::log("[server] sym key request - failed - user disconnected?...");
     }
 }
 
@@ -465,9 +477,7 @@ void SecchatServer::handleChatGroupSymKeyResponse( //
 
     User *userHandle = *userHandleOpt;
 
-    // TODO: shared weak confusion
-    std::shared_ptr<Session> userSession{userHandle->mSession};
-    mTransport.sendBlocking(rawBuffer, frame.getSize(), userSession);
+    mTransport.sendBlocking(rawBuffer, frame.getSize(), userHandle->mSession);
 }
 
 bool SecchatServer::joinUserToRoom( //
@@ -590,13 +600,11 @@ bool SecchatServer::requestNewSymKeyFromUser( //
     std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
     assert(buffer);
 
-    // TODO: weak & shared confusion
-    std::shared_ptr<Session> sharedSession{userHandle.mSession};
     const bool sendOk =          //
         mTransport.sendBlocking( //
             buffer.get(),
             frame.getSize(),
-            sharedSession);
+            userHandle.mSession);
 
     return sendOk;
 }
@@ -623,8 +631,7 @@ void SecchatServer::cleanupDisconnectedUsers()
                         joinedUsers.end(),
                         [&](UserId userId) { //
                             User &user = findUserById(userId);
-                            auto userSessionPtr = user.mSession.lock();
-
+                            auto userSessionPtr = user.mSession;
                             if ((!userSessionPtr) || //
                                 (userSessionPtr->getId() == invalidatedSessionId))
                             {
@@ -654,8 +661,7 @@ void SecchatServer::cleanupDisconnectedUsers()
                 std::remove_if(mUsers.begin(), //
                                mUsers.end(),
                                [&](User &user) { //
-                                   auto userSessionPtr = user.mSession.lock();
-
+                                   auto userSessionPtr = user.mSession;
                                    if ((!userSessionPtr) || //
                                        (userSessionPtr->getId() == invalidatedSessionId))
                                    {
@@ -723,12 +729,11 @@ void SecchatServer::sendUserKeysToUser( //
 
     auto serializedUserKeysFrame = Proto::serialize(userKeysframe);
 
-    // TODO: weak/shared confusion
-    std::shared_ptr<Session> ses{userHandleDestFound->mSession};
-    mTransport.sendBlocking( //
+    const bool sendOk = mTransport.sendBlocking( //
         serializedUserKeysFrame.get(),
         userKeysframe.getSize(),
-        ses);
+        userHandleDestFound->mSession);
+    assert(sendOk);
 }
 
 SecchatServer::User::User()

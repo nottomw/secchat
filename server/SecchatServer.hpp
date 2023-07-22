@@ -36,7 +36,7 @@ private:
 
         UserId id;
         std::string mUserName;
-        std::weak_ptr<Session> mSession;
+        std::shared_ptr<Session> mSession;
 
         crypto::KeyAsymSignature keySign;
         crypto::KeyAsym keyEncrypt;

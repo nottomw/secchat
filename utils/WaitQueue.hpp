@@ -13,7 +13,8 @@ namespace utils
 enum class WaitEventType
 {
     kUserConnectAck,
-    kUserJoined
+    kUserJoined,
+    kSymmetricKeyReceived
 };
 
 class WaitQueue
