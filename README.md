@@ -17,6 +17,6 @@ Packages fetched by `cmake` with `conan`.
 ```
 $ mkdir build
 $ cd build
-$ cmake -G Ninja -S ../src/
+$ cmake -G Ninja -S ../src/ -DSECCHAT_MODE=ncurses
 $ ninja
 ```
