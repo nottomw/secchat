@@ -12,7 +12,7 @@ target_include_directories(data_transport
 
 target_link_libraries(data_transport
     PUBLIC
-        CONAN_PKG::asio
+        asio::asio
         secchat::utils
 )
 

@@ -1,0 +1,42 @@
+syntax = "proto2";
+
+package proto;
+
+// TODO: maybe rename to SecFrame
+message Frame {
+    required uint64 protoVersion = 1;
+    required uint64 timestampSend = 2;
+
+    required string source = 3;
+    required string destination = 4;
+
+    required uint32 payloadType = 5;
+    required bytes payload = 6;
+}
+
+message PayloadUserConnectOrAck {
+    required string userName = 1;
+    required bytes pubSignKey = 2; // crypto::kPubKeySignatureByteCount
+    required bytes pubEncryptKey = 3; // crypto::kPubKeyByteCount
+    optional bool isAck = 4;
+}
+
+message PayloadJoinRequestOrAck {
+    required string roomName = 1;
+    optional bool newRoom = 2;
+}
+
+message PayloadChatGroupCurrentSymKeyRequestOrResponse {
+    required string roomName = 1;
+    optional bytes key = 2; // crypto::kSymKeyByteCount
+}
+
+message PayloadMessage {
+    required bytes nonce = 1;
+    required bytes msg = 2;
+}
+
+message PayloadUserPubKeys {
+    required bytes pubSignKey = 1; // crypto::kPubKeySignatureByteCount
+    required bytes pubEncryptKey = 2; // crypto::kPubKeyByteCount
+}

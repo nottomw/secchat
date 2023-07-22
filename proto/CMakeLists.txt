@@ -1,5 +1,7 @@
 # Proto.
 
+add_subdirectory(protobuf)
+
 add_library(proto
     Proto.cpp
 )

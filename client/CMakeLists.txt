@@ -2,7 +2,7 @@
 
 if ("${SECCHAT_MODE}" STREQUAL "ncurses")
 
-    set(LIB_NCURSES CONAN_PKG::ncurses)
+    set(LIB_NCURSES ncurses::ncurses)
     set(USER_INTERFACES_SOURCES ui_ncurses/UserInterface.cpp)
 
 elseif("${SECCHAT_MODE}" STREQUAL "terminal")
