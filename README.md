@@ -4,7 +4,7 @@
 ![secchat terminal](https://github.com/nottomw/secchat/actions/workflows/secchat-terminal.yml/badge.svg)
 
 ## Info
-Fun with crypto and networking.
+Fun with crypto and networking - e2e encrypted chat.
 
 Currently used libs:
 - net: `Asio` (not boost::asio)
