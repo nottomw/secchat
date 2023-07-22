@@ -10,7 +10,7 @@ class Session
 public:
     using IdType = uint32_t;
 
-    Session(asio::ip::tcp::socket &&s, const std::string &sessionName);
+    Session(asio::ip::tcp::socket &&s);
     Session(Session &&s);
 
     void start();
@@ -23,8 +23,6 @@ public:
     IdType getId() const;
 
     bool operator==(const Session &s);
-
-    std::string getName() const;
 
 private:
     struct ReceivedData
@@ -46,8 +44,6 @@ private:
 
     std::mutex mReceivedDataQueueMutex;
     std::deque<ReceivedData> mReceivedDataQueue;
-
-    const std::string mSessionName;
 
     bool getData( //
         uint8_t *const buffer,

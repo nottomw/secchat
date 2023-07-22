@@ -73,7 +73,7 @@ void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
     asio::ip::tcp::socket sock(mIoContext);
     asio::connect(sock, endpoints);
 
-    auto session = std::make_shared<Session>(std::move(sock), ipAddr);
+    auto session = std::make_shared<Session>(std::move(sock));
     session->start();
 
     {
@@ -114,10 +114,10 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
         }
         else if (err)
         {
-            utils::log("[transport] WRITE ERROR: %s, %d to session: %s", //
+            utils::log("[transport] WRITE ERROR: %s, %d to session: %d", //
                        err.message().c_str(),
                        err.value(),
-                       it->getName());
+                       it->getId());
             it->invalidate();
             continue;
         }
@@ -126,8 +126,8 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
             // probably sesion disconnected, will be removed later
             if (wrote != bufferLen)
             {
-                utils::log("[transport] could not send whole message to session %s (%d/%d)", //
-                           it->getName(),
+                utils::log("[transport] could not send whole message to session %d (%d/%d)", //
+                           it->getId(),
                            wrote,
                            bufferLen);
                 continue;
@@ -172,17 +172,17 @@ bool DataTransport::sendBlocking( //
     }
     else if (err)
     {
-        utils::log("[transport] WRITE ERROR: %s, %d to session: %s", //
+        utils::log("[transport] WRITE ERROR: %s, %d to session: %d", //
                    err.message().c_str(),
                    err.value(),
-                   session->getName());
+                   session->getId());
         session->invalidate();
         return false;
     }
     else if (wrote != bufferLen)
     {
-        utils::log("[transport] could not send whole message to session %s (%d/%d)", //
-                   session->getName(),
+        utils::log("[transport] could not send whole message to session %d (%d/%d)", //
+                   session->getId(),
                    wrote,
                    bufferLen);
         return false;
@@ -262,8 +262,7 @@ void DataTransport::acceptHandler()
 
             {
                 auto session = std::make_shared<Session>( //
-                    std::move(socket),
-                    remoteEp.address().to_string());
+                    std::move(socket));
                 session->start();
 
                 {
@@ -301,8 +300,7 @@ void DataTransport::invalidatedSessionsCollect()
                     // are now destroyed, cannot display anything more than
                     // info on removing session
 
-                    utils::log("[session collector] removing session: %s",
-                               session->getName().c_str());
+                    utils::log("[session collector] removing session: %d", session->getId());
 
                     removedSessions += 1U;
 

@@ -5,14 +5,12 @@
 Session::IdType Session::mGlobalSessionCounter = 0U;
 
 Session::Session( //
-    asio::ip::tcp::socket &&s,
-    const std::string &sessionName)
+    asio::ip::tcp::socket &&s)
     : mRawBuffer{}
     , mSocket{std::move(s)}
     , mValid{true}
     , mSessionId{mGlobalSessionCounter++}
     , mReceivedDataQueue{}
-    , mSessionName{sessionName}
 {
 }
 
@@ -22,7 +20,6 @@ Session::Session(Session &&s)
     , mValid{true}
     , mSessionId{mGlobalSessionCounter++}
     , mReceivedDataQueue{std::move(s.mReceivedDataQueue)}
-    , mSessionName{std::move(s.mSessionName)}
 {
 }
 
@@ -63,7 +60,7 @@ asio::ip::tcp::socket &Session::getSocket()
 
 void Session::invalidate()
 {
-    utils::log("[session] INVALIDATED: %s", getName());
+    utils::log("[session] INVALIDATED: %d", mSessionId);
     mValid = false; // scheduled for disposal
 }
 
@@ -80,11 +77,6 @@ Session::IdType Session::getId() const
 bool Session::operator==(const Session &s)
 {
     return (getId() == s.getId());
-}
-
-std::string Session::getName() const
-{
-    return mSessionName;
 }
 
 bool Session::getData(uint8_t *const buffer,
