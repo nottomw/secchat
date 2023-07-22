@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Crypto.hpp"
+#include "SecProto.pb.h"
 #include "Utils.hpp"
 
 #include <cstdint>
@@ -8,220 +9,53 @@
 #include <string>
 #include <vector>
 
-// TODO: all of this needs to be thoroughly size-checked
-// TODO: use some serialization lib (nanoprotobuf? FlatBuffers? capnproto?) instead of this
-// horrendous code
-// TODO: some payloads are actualy filled in by the client, should be fixed
-
-class Proto
+namespace proto
 {
-public:
-    enum class PayloadType
-    {
-        kNone,
 
-        // ------ PLAINTEXT messages, not signed
+constexpr uint64_t genProtoVersion(const uint32_t major, const uint32_t minor)
+{
+    return (((uint64_t)major) << 32) | (((uint64_t)minor));
+}
 
-        kUserConnect, // from user, contains pub keys (sign & encrypt)
+constexpr uint64_t kProtoVersionCurrent = genProtoVersion(1, 0);
 
-        // ------ ENCRYPTED asym only
+enum class PayloadType
+{
+    kNone,
 
-        kUserConnectAck, // from server, contains servers pub keys (sign & encrypt), encrypted with
-                         // user pub key
+    // ------ PLAINTEXT messages, not signed
 
-        // ------ ENCRYPTED asym only, signed asym by sender:
+    kUserConnect, // from user, contains pub keys (sign & encrypt)
 
-        kNewSymKeyRequest, // from server, request new sym key generation from specific user
+    // ------ ENCRYPTED asym only
 
-        kChatRoomJoin,   // from user
-        kChatRoomJoined, // from server, acknowledge room join
-        kChatRoomLeave,  // from user
+    kUserConnectAck, // from server, contains servers pub keys (sign & encrypt), encrypted with
+                     // user pub key
 
-        // TODO: user should get a prompt (yes/no) to confirm he wants to provide the keys?
-        kChatGroupCurrentSymKeyRequest,  // from user, request sym key, sent to server, server
-                                         // forwards
-        kUserPubKeys,                    // from server, send other user pub key to requesting user
-        kChatGroupCurrentSymKeyResponse, // from user, respond with asym key encrypted with
-                                         // requesting user pubkey
+    // ------ ENCRYPTED asym only, signed asym by sender:
 
-        // ------ ENCRYPTED messages sym, signed asym by sender:
+    kNewSymKeyRequest, // from server, request new sym key generation from specific user
 
-        k$$$MessageToRoom, // from user, encrypted sym, signed asym
-        k$$$MessageToUser, // from user, encrypted sym, signed asym
+    kChatRoomJoin,   // from user
+    kChatRoomJoined, // from server, acknowledge room join
+    kChatRoomLeave,  // from user
 
-        k$$$UserAsymKeyChanged, // send by user - new pubkey, signed with old asym key, encrypted
-                                // sym
-    };
+    // TODO: user should get a prompt (yes/no) to confirm he wants to provide the keys?
+    kChatGroupCurrentSymKeyRequest,  // from user, request sym key, sent to server, server
+                                     // forwards
+    kUserPubKeys,                    // from server, send other user pub key to requesting user
+    kChatGroupCurrentSymKeyResponse, // from user, respond with asym key encrypted with
+                                     // requesting user pubkey
 
-    // Header is never encrypted - sent plain text.
-    struct Header
-    {
-    public:
-        uint64_t protoVersion;
-        uint64_t timestampSend; // timestamped when sending
+    // ------ ENCRYPTED messages sym, signed asym by sender:
 
-        // TODO: the source & destination should have some "max size" and
-        // the buffer should always be allocated to this max size, same for payload.
-        uint32_t sourceSize;
-        std::unique_ptr<char[]> source;
+    k$$$MessageToRoom, // from user, encrypted sym, signed asym
+    k$$$MessageToUser, // from user, encrypted sym, signed asym
 
-        uint32_t destinationSize;
-        std::unique_ptr<char[]> destination;
-
-    private:
-        Header();
-
-        friend class Proto;
-    };
-
-    struct Payload
-    {
-    public:
-        PayloadType type;
-        uint32_t size;
-        std::unique_ptr<uint8_t[]> payload;
-
-    private:
-        Payload();
-
-        friend class Proto;
-    };
-
-    struct Frame
-    {
-    public:
-        uint32_t getSize() const;
-        Header &getHeader();
-        Payload &getPayload();
-
-    private:
-        Header header;
-        Payload payload;
-
-        friend class Proto;
-    };
-
-    struct PayloadUserConnect
-    {
-        std::string userName;
-        uint8_t pubSignKey[crypto::kPubKeySignatureByteCount];
-        uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
-    };
-
-    struct PayloadUserConnectAck
-    {
-        uint8_t pubSignKey[crypto::kPubKeySignatureByteCount];
-        uint8_t pubEncryptKey[crypto::kPubKeyByteCount];
-    };
-
-    // Very fishy - same frame used for both join request and response
-    struct PayloadJoinReqAck
-    {
-        uint8_t newRoom; // 1 or 0
-        uint32_t roomNameSize;
-        std::string roomName;
-    };
-
-    struct PayloadRequestCurrentSymKey
-    {
-        uint32_t roomNameSize;
-        std::string roomName;
-    };
-
-    struct PayloadMessage
-    {
-        utils::ByteArray nonce; // plain
-        utils::ByteArray msg;   // encrypted
-    };
-
-    static void populateHeader( //
-        Frame &frame,
-        const std::string &source,
-        const std::string &destination);
-
-    static void populatePayload( //
-        Frame &frame,
-        PayloadType type,
-        uint8_t *const payload,
-        const uint32_t payloadSize);
-
-    static void populatePayloadUserConnect( //
-        Frame &frame,
-        const std::string &userName,
-        const crypto::KeyAsymSignature &keySign,
-        const crypto::KeyAsym &key);
-
-    static void populatePayloadUserConnectAck( //
-        Frame &frame,
-        const crypto::KeyAsymSignature &keySign,
-        const crypto::KeyAsym &key,
-        const crypto::KeyAsym &payloadEncryptionKey);
-
-    static void populatePayloadChatRoomJoinOrAck( //
-        Frame &frame,
-        const std::string &roomName,
-        const crypto::KeyAsymSignature &payloadSignKey,
-        const crypto::KeyAsym &payloadEncryptKey,
-        const bool isJoinAck = false,
-        const bool newRoomCreated = false);
-
-    static void populatePayloadNewSymKeyRequest( //
-        Proto::Frame &frame,
-        const std::string &roomName,
-        const crypto::KeyAsymSignature &payloadSignKey,
-        const crypto::KeyAsym &payloadEncryptKey);
-
-    static void populatePayloadCurrentSymKeyRequest( //
-        Proto::Frame &frame,
-        const std::string &roomName,
-        const crypto::KeyAsymSignature &payloadSignKey,
-        const crypto::KeyAsym &payloadEncryptKey);
-
-    static void populatePayloadMessage( //
-        Proto::Frame &frame,
-        const std::string &message,
-        const crypto::KeyAsymSignature &payloadSignKey,
-        const crypto::KeySym &groupChatKey);
-
-    static std::unique_ptr<uint8_t[]> serialize( //
-        const Frame &frame);
-
-    static std::vector<Frame> deserialize( //
-        const uint8_t *const buffer,
-        const uint32_t bufferSize);
-
-    static utils::ByteArray serializeUserConnect( //
-        const PayloadUserConnect &payload);
-
-    static PayloadUserConnect deserializeUserConnect( //
-        const uint8_t *const buffer,
-        const uint32_t bufferSize);
-
-    static PayloadUserConnectAck deserializeUserConnectAck( //
-        const uint8_t *const buffer,
-        const uint32_t bufferSize);
-
-    static utils::ByteArray serializeJoinReqAck( //
-        const PayloadJoinReqAck &payload);
-
-    static PayloadJoinReqAck deserializeJoinReqAck( //
-        const uint8_t *const buffer,
-        const uint32_t bufferSize);
-
-    static utils::ByteArray serializeRequestCurrentSymKey( //
-        const PayloadRequestCurrentSymKey &payload);
-
-    static PayloadRequestCurrentSymKey deserializeRequestCurrentSymKey( //
-        const uint8_t *const buffer,
-        const uint32_t bufferSize);
-
-    static utils::ByteArray serializeMessage(const PayloadMessage &payload);
-    static PayloadMessage deserializeMessage(const uint8_t *const buffer,
-                                             const uint32_t bufferSize);
-
-    // TODO:
-    // bool frameSignAndEncrypt(
-    //  Frame &frame,
-    //  const crypto::KeyAsymSignature &payloadSignKey, const
-    //  crypto::KeyAsym &payloadEncryptKey);
+    k$$$UserAsymKeyChanged, // send by user - new pubkey, signed with old asym key, encrypted
+                            // sym
 };
+
+void serialize(proto::Frame &frame);
+
+}; // namespace proto

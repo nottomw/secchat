@@ -5,578 +5,572 @@
 #include <cstdio>
 #include <cstring>
 
-constexpr uint64_t genProtoVersion(const uint32_t major, const uint32_t minor)
-{
-    return (((uint64_t)major) << 32) | (((uint64_t)minor));
-}
-
-constexpr uint64_t kProtoVersionCurrent = genProtoVersion(1, 0);
-
-void Proto::populateHeader( //
-    Frame &frame,
-    const std::string &source,
-    const std::string &destination)
-{
-    frame.header.protoVersion = kProtoVersionCurrent;
-
-    auto currentTime = //
-        std::chrono::system_clock::now();
-    auto currentTimeUnixMicro =                                //
-        std::chrono::duration_cast<std::chrono::microseconds>( //
-            currentTime.time_since_epoch())
-            .count();
-
-    frame.header.timestampSend = currentTimeUnixMicro; // should be populated later
-
-    frame.header.source = std::make_unique<char[]>(source.size());
-    memcpy(frame.header.source.get(), source.c_str(), source.size());
-
-    frame.header.sourceSize = source.size();
-
-    frame.header.destination = std::make_unique<char[]>(destination.size());
-    memcpy(frame.header.destination.get(), destination.c_str(), destination.size());
-
-    frame.header.destinationSize = destination.size();
-}
-
-void Proto::populatePayload( //
-    Frame &frame,
-    Proto::PayloadType type,
-    uint8_t *const payload,
-    const uint32_t payloadSize)
-{
-    frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[payloadSize]);
-
-    frame.payload.type = type;
-    frame.payload.size = payloadSize;
-
-    memcpy(frame.payload.payload.get(), payload, payloadSize);
-}
-
-void Proto::populatePayloadUserConnect( //
-    Proto::Frame &frame,
-    const std::string &userName,
-    const crypto::KeyAsymSignature &keySign,
-    const crypto::KeyAsym &key)
-{
-    PayloadUserConnect payloadUserConnect;
-    payloadUserConnect.userName = userName;
-
-    memcpy(payloadUserConnect.pubSignKey, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
-    memcpy(payloadUserConnect.pubEncryptKey, key.mKeyPub, crypto::kPubKeyByteCount);
-
-    auto buffer = serializeUserConnect(payloadUserConnect);
-
-    frame.payload.type = PayloadType::kUserConnect;
-    frame.payload.payload = std::move(buffer.data);
-    frame.payload.size = buffer.dataSize;
-}
-
-void Proto::populatePayloadUserConnectAck( //
-    Proto::Frame &frame,
-    const crypto::KeyAsymSignature &keySign,
-    const crypto::KeyAsym &key,
-    const crypto::KeyAsym &payloadEncryptionKey)
-{
-    const uint32_t payloadSize = //
-        crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
-
-    auto tmpBuffer = std::make_unique<uint8_t[]>(payloadSize);
-
-    uint8_t *const tmpBufferAddr = tmpBuffer.get();
-    uint8_t *const signOff = tmpBufferAddr;
-    uint8_t *const encrOff = tmpBufferAddr + crypto::kPubKeySignatureByteCount;
-
-    memcpy(signOff, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
-    memcpy(encrOff, key.mKeyPub, crypto::kPubKeyByteCount);
-
-    crypto::EncryptedData encrypted =
-        crypto::asymEncrypt(payloadEncryptionKey, tmpBufferAddr, payloadSize);
-
-    frame.payload.type = PayloadType::kUserConnectAck;
-    frame.payload.payload = std::move(encrypted.data);
-    frame.payload.size = encrypted.dataSize;
-}
-
-void Proto::populatePayloadChatRoomJoinOrAck( //
-    Proto::Frame &frame,
-    const std::string &roomName,
-    const crypto::KeyAsymSignature &payloadSignKey,
-    const crypto::KeyAsym &payloadEncryptKey,
-    const bool isJoinAck,
-    const bool newRoomCreated)
-{
-    //    const bool joinAckNewRoom = newRoomCreated && isJoinAck;
-    //    const bool joinAckOldRoom = newRoomCreated && !isJoinAck;
-    //    const bool joinReq = !newRoomCreated && !isJoinAck;
-    //    assert(joinAckNewRoom || joinAckOldRoom || joinReq);
-
-    PayloadJoinReqAck join;
-    join.newRoom = newRoomCreated;
-    join.roomNameSize = roomName.size();
-    join.roomName = roomName;
-
-    utils::ByteArray joinSerialized = serializeJoinReqAck(join);
-
-    crypto::SignedData signedData = //
-        crypto::sign(               //
-            payloadSignKey,
-            joinSerialized.data.get(),
-            joinSerialized.dataSize);
-
-    crypto::EncryptedData encryptedData =      //
-        crypto::asymEncrypt(payloadEncryptKey, //
-                            signedData.data.get(),
-                            signedData.dataSize);
-
-    Payload &pay = frame.getPayload();
-
-    if (isJoinAck)
-    {
-        pay.type = PayloadType::kChatRoomJoined;
-    }
-    else
-    {
-        pay.type = PayloadType::kChatRoomJoin;
-    }
-
-    pay.payload = std::move(encryptedData.data);
-    pay.size = encryptedData.dataSize;
-}
-
-void Proto::populatePayloadNewSymKeyRequest( //
-    Proto::Frame &frame,
-    const std::string &roomName,
-    const crypto::KeyAsymSignature &payloadSignKey,
-    const crypto::KeyAsym &payloadEncryptKey)
-{
-    Proto::Payload &pay = frame.getPayload();
-
-    pay.type = PayloadType::kNewSymKeyRequest;
-
-    PayloadRequestCurrentSymKey newSymKey;
-    newSymKey.roomNameSize = roomName.size();
-    newSymKey.roomName = roomName;
-
-    auto serialized = serializeRequestCurrentSymKey(newSymKey);
-
-    crypto::SignedData signedData = //
-        crypto::sign(               //
-            payloadSignKey,
-            serialized.data.get(),
-            serialized.dataSize);
-
-    crypto::EncryptedData encryptedData =      //
-        crypto::asymEncrypt(payloadEncryptKey, //
-                            signedData.data.get(),
-                            signedData.dataSize);
-
-    pay.payload = std::move(encryptedData.data);
-    pay.size = encryptedData.dataSize;
-}
-
-void Proto::populatePayloadCurrentSymKeyRequest( //
-    Proto::Frame &frame,
-    const std::string &roomName,
-    const crypto::KeyAsymSignature &payloadSignKey,
-    const crypto::KeyAsym &payloadEncryptKey)
-{
-    PayloadRequestCurrentSymKey req;
-    req.roomNameSize = roomName.size();
-    req.roomName = roomName;
-
-    auto reqSerialized = serializeRequestCurrentSymKey(req);
-
-    auto signedReq = //
-        crypto::sign(payloadSignKey, reqSerialized.data.get(), reqSerialized.dataSize);
-
-    auto encryptedReq =
-        crypto::asymEncrypt(payloadEncryptKey, signedReq.data.get(), signedReq.dataSize);
-
-    Payload &pay = frame.getPayload();
-    pay.type = Proto::PayloadType::kChatGroupCurrentSymKeyRequest;
-    pay.payload = std::move(encryptedReq.data);
-    pay.size = encryptedReq.dataSize;
-}
-
-void Proto::populatePayloadMessage( //
-    Proto::Frame &frame,
-    const std::string &message,
-    const crypto::KeyAsymSignature &payloadSignKey,
-    const crypto::KeySym &groupChatKey)
-{
-    Payload &pay = frame.getPayload();
-
-    PayloadMessage messagePayload;
-
-    auto nonceBa = crypto::symEncryptGetNonce();
-    messagePayload.nonce = std::move(nonceBa);
-
-    const uint32_t messageSize = message.size();
-    crypto::SignedData signedData = //
-        crypto::sign(               //
-            payloadSignKey,
-            (uint8_t *)message.c_str(),
-            messageSize);
-
-    crypto::EncryptedData encryptedData = //
-        crypto::symEncrypt(groupChatKey,  //
-                           signedData.data.get(),
-                           signedData.dataSize,
-                           messagePayload.nonce);
+// void Proto::populateHeader( //
+//     Frame &frame,
+//     const std::string &source,
+//     const std::string &destination)
+//{
+//     frame.header.protoVersion = kProtoVersionCurrent;
+
+//    auto currentTime = //
+//        std::chrono::system_clock::now();
+//    auto currentTimeUnixMicro =                                //
+//        std::chrono::duration_cast<std::chrono::microseconds>( //
+//            currentTime.time_since_epoch())
+//            .count();
+
+//    frame.header.timestampSend = currentTimeUnixMicro; // should be populated later
+
+//    frame.header.source = std::make_unique<char[]>(source.size());
+//    memcpy(frame.header.source.get(), source.c_str(), source.size());
+
+//    frame.header.sourceSize = source.size();
+
+//    frame.header.destination = std::make_unique<char[]>(destination.size());
+//    memcpy(frame.header.destination.get(), destination.c_str(), destination.size());
+
+//    frame.header.destinationSize = destination.size();
+//}
+
+// void Proto::populatePayload( //
+//     Frame &frame,
+//     Proto::PayloadType type,
+//     uint8_t *const payload,
+//     const uint32_t payloadSize)
+//{
+//     frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[payloadSize]);
+
+//    frame.payload.type = type;
+//    frame.payload.size = payloadSize;
+
+//    memcpy(frame.payload.payload.get(), payload, payloadSize);
+//}
+
+// void Proto::populatePayloadUserConnect( //
+//     Proto::Frame &frame,
+//     const std::string &userName,
+//     const crypto::KeyAsymSignature &keySign,
+//     const crypto::KeyAsym &key)
+//{
+//     PayloadUserConnect payloadUserConnect;
+//     payloadUserConnect.userName = userName;
+
+//    memcpy(payloadUserConnect.pubSignKey, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
+//    memcpy(payloadUserConnect.pubEncryptKey, key.mKeyPub, crypto::kPubKeyByteCount);
+
+//    auto buffer = serializeUserConnect(payloadUserConnect);
+
+//    frame.payload.type = PayloadType::kUserConnect;
+//    frame.payload.payload = std::move(buffer.data);
+//    frame.payload.size = buffer.dataSize;
+//}
+
+// void Proto::populatePayloadUserConnectAck( //
+//     Proto::Frame &frame,
+//     const crypto::KeyAsymSignature &keySign,
+//     const crypto::KeyAsym &key,
+//     const crypto::KeyAsym &payloadEncryptionKey)
+//{
+//     const uint32_t payloadSize = //
+//         crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
+
+//    auto tmpBuffer = std::make_unique<uint8_t[]>(payloadSize);
+
+//    uint8_t *const tmpBufferAddr = tmpBuffer.get();
+//    uint8_t *const signOff = tmpBufferAddr;
+//    uint8_t *const encrOff = tmpBufferAddr + crypto::kPubKeySignatureByteCount;
+
+//    memcpy(signOff, keySign.mKeyPub, crypto::kPubKeySignatureByteCount);
+//    memcpy(encrOff, key.mKeyPub, crypto::kPubKeyByteCount);
+
+//    crypto::EncryptedData encrypted =
+//        crypto::asymEncrypt(payloadEncryptionKey, tmpBufferAddr, payloadSize);
+
+//    frame.payload.type = PayloadType::kUserConnectAck;
+//    frame.payload.payload = std::move(encrypted.data);
+//    frame.payload.size = encrypted.dataSize;
+//}
+
+// void Proto::populatePayloadChatRoomJoinOrAck( //
+//     Proto::Frame &frame,
+//     const std::string &roomName,
+//     const crypto::KeyAsymSignature &payloadSignKey,
+//     const crypto::KeyAsym &payloadEncryptKey,
+//     const bool isJoinAck,
+//     const bool newRoomCreated)
+//{
+//     //    const bool joinAckNewRoom = newRoomCreated && isJoinAck;
+//     //    const bool joinAckOldRoom = newRoomCreated && !isJoinAck;
+//     //    const bool joinReq = !newRoomCreated && !isJoinAck;
+//     //    assert(joinAckNewRoom || joinAckOldRoom || joinReq);
+
+//    PayloadJoinReqAck join;
+//    join.newRoom = newRoomCreated;
+//    join.roomNameSize = roomName.size();
+//    join.roomName = roomName;
+
+//    utils::ByteArray joinSerialized = serializeJoinReqAck(join);
+
+//    crypto::SignedData signedData = //
+//        crypto::sign(               //
+//            payloadSignKey,
+//            joinSerialized.data.get(),
+//            joinSerialized.dataSize);
+
+//    crypto::EncryptedData encryptedData =      //
+//        crypto::asymEncrypt(payloadEncryptKey, //
+//                            signedData.data.get(),
+//                            signedData.dataSize);
+
+//    Payload &pay = frame.getPayload();
+
+//    if (isJoinAck)
+//    {
+//        pay.type = PayloadType::kChatRoomJoined;
+//    }
+//    else
+//    {
+//        pay.type = PayloadType::kChatRoomJoin;
+//    }
+
+//    pay.payload = std::move(encryptedData.data);
+//    pay.size = encryptedData.dataSize;
+//}
+
+// void Proto::populatePayloadNewSymKeyRequest( //
+//     Proto::Frame &frame,
+//     const std::string &roomName,
+//     const crypto::KeyAsymSignature &payloadSignKey,
+//     const crypto::KeyAsym &payloadEncryptKey)
+//{
+//     Proto::Payload &pay = frame.getPayload();
+
+//    pay.type = PayloadType::kNewSymKeyRequest;
+
+//    PayloadRequestCurrentSymKey newSymKey;
+//    newSymKey.roomNameSize = roomName.size();
+//    newSymKey.roomName = roomName;
+
+//    auto serialized = serializeRequestCurrentSymKey(newSymKey);
+
+//    crypto::SignedData signedData = //
+//        crypto::sign(               //
+//            payloadSignKey,
+//            serialized.data.get(),
+//            serialized.dataSize);
+
+//    crypto::EncryptedData encryptedData =      //
+//        crypto::asymEncrypt(payloadEncryptKey, //
+//                            signedData.data.get(),
+//                            signedData.dataSize);
+
+//    pay.payload = std::move(encryptedData.data);
+//    pay.size = encryptedData.dataSize;
+//}
+
+// void Proto::populatePayloadCurrentSymKeyRequest( //
+//     Proto::Frame &frame,
+//     const std::string &roomName,
+//     const crypto::KeyAsymSignature &payloadSignKey,
+//     const crypto::KeyAsym &payloadEncryptKey)
+//{
+//     PayloadRequestCurrentSymKey req;
+//     req.roomNameSize = roomName.size();
+//     req.roomName = roomName;
+
+//    auto reqSerialized = serializeRequestCurrentSymKey(req);
+
+//    auto signedReq = //
+//        crypto::sign(payloadSignKey, reqSerialized.data.get(), reqSerialized.dataSize);
+
+//    auto encryptedReq =
+//        crypto::asymEncrypt(payloadEncryptKey, signedReq.data.get(), signedReq.dataSize);
+
+//    Payload &pay = frame.getPayload();
+//    pay.type = Proto::PayloadType::kChatGroupCurrentSymKeyRequest;
+//    pay.payload = std::move(encryptedReq.data);
+//    pay.size = encryptedReq.dataSize;
+//}
+
+// void Proto::populatePayloadMessage( //
+//     Proto::Frame &frame,
+//     const std::string &message,
+//     const crypto::KeyAsymSignature &payloadSignKey,
+//     const crypto::KeySym &groupChatKey)
+//{
+//     Payload &pay = frame.getPayload();
+
+//    PayloadMessage messagePayload;
 
-    messagePayload.msg.data = std::move(encryptedData.data);
-    messagePayload.msg.dataSize = encryptedData.dataSize;
+//    auto nonceBa = crypto::symEncryptGetNonce();
+//    messagePayload.nonce = std::move(nonceBa);
 
-    utils::ByteArray serializedMessage = serializeMessage(messagePayload);
+//    const uint32_t messageSize = message.size();
+//    crypto::SignedData signedData = //
+//        crypto::sign(               //
+//            payloadSignKey,
+//            (uint8_t *)message.c_str(),
+//            messageSize);
 
-    pay.type = Proto::PayloadType::k$$$MessageToRoom;
-    pay.payload = std::move(serializedMessage.data);
-    pay.size = serializedMessage.dataSize;
-}
-
-std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
-{
-    auto retBuf = std::unique_ptr<uint8_t[]>(new uint8_t[frame.getSize()]);
-    uint8_t *buf = retBuf.get();
-
-    // Serialize the header...
-    memcpy(buf, &frame.header.protoVersion, sizeof(Header::protoVersion));
-    buf += sizeof(Header::protoVersion);
-
-    memcpy(buf, &frame.header.timestampSend, sizeof(Header::timestampSend));
-    buf += sizeof(Header::timestampSend);
-
-    memcpy(buf, &frame.header.sourceSize, sizeof(Header::sourceSize));
-    buf += sizeof(Header::sourceSize);
+//    crypto::EncryptedData encryptedData = //
+//        crypto::symEncrypt(groupChatKey,  //
+//                           signedData.data.get(),
+//                           signedData.dataSize,
+//                           messagePayload.nonce);
 
-    memcpy(buf, frame.header.source.get(), frame.header.sourceSize);
-    buf += frame.header.sourceSize;
+//    messagePayload.msg.data = std::move(encryptedData.data);
+//    messagePayload.msg.dataSize = encryptedData.dataSize;
 
-    memcpy(buf, &frame.header.destinationSize, sizeof(Header::destinationSize));
-    buf += sizeof(Header::destinationSize);
+//    utils::ByteArray serializedMessage = serializeMessage(messagePayload);
 
-    memcpy(buf, frame.header.destination.get(), frame.header.destinationSize);
-    buf += frame.header.destinationSize;
+//    pay.type = Proto::PayloadType::k$$$MessageToRoom;
+//    pay.payload = std::move(serializedMessage.data);
+//    pay.size = serializedMessage.dataSize;
+//}
 
-    // Serialize the payload...
+// std::unique_ptr<uint8_t[]> Proto::serialize(const Proto::Frame &frame)
+//{
+//     auto retBuf = std::unique_ptr<uint8_t[]>(new uint8_t[frame.getSize()]);
+//     uint8_t *buf = retBuf.get();
 
-    memcpy(buf, &frame.payload.type, sizeof(Payload::type));
-    buf += sizeof(Payload::type);
+//    // Serialize the header...
+//    memcpy(buf, &frame.header.protoVersion, sizeof(Header::protoVersion));
+//    buf += sizeof(Header::protoVersion);
 
-    memcpy(buf, &frame.payload.size, sizeof(Payload::size));
-    buf += sizeof(Payload::size);
+//    memcpy(buf, &frame.header.timestampSend, sizeof(Header::timestampSend));
+//    buf += sizeof(Header::timestampSend);
 
-    memcpy(buf, frame.payload.payload.get(), frame.payload.size);
+//    memcpy(buf, &frame.header.sourceSize, sizeof(Header::sourceSize));
+//    buf += sizeof(Header::sourceSize);
 
-    return retBuf;
-}
+//    memcpy(buf, frame.header.source.get(), frame.header.sourceSize);
+//    buf += frame.header.sourceSize;
 
-std::vector<Proto::Frame> Proto::deserialize( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize)
-{
-    assert(buffer != nullptr);
+//    memcpy(buf, &frame.header.destinationSize, sizeof(Header::destinationSize));
+//    buf += sizeof(Header::destinationSize);
 
-    std::vector<Proto::Frame> allFrames;
+//    memcpy(buf, frame.header.destination.get(), frame.header.destinationSize);
+//    buf += frame.header.destinationSize;
 
-    const uint8_t *buf = buffer; // copy the pointer so it can be moved
-    uint32_t bytesLeftToParse = bufferSize;
+//    // Serialize the payload...
 
-    while (bytesLeftToParse > 0)
-    {
-        Proto::Frame frame;
+//    memcpy(buf, &frame.payload.type, sizeof(Payload::type));
+//    buf += sizeof(Payload::type);
 
-        // Deserialize the header...
-        memcpy(&frame.header.protoVersion, buf, sizeof(Header::protoVersion));
-        buf += sizeof(Header::protoVersion);
+//    memcpy(buf, &frame.payload.size, sizeof(Payload::size));
+//    buf += sizeof(Payload::size);
 
-        memcpy(&frame.header.timestampSend, buf, sizeof(Header::timestampSend));
-        buf += sizeof(Header::timestampSend);
+//    memcpy(buf, frame.payload.payload.get(), frame.payload.size);
 
-        memcpy(&frame.header.sourceSize, buf, sizeof(Header::sourceSize));
-        buf += sizeof(Header::sourceSize);
+//    return retBuf;
+//}
 
-        frame.header.source = std::unique_ptr<char[]>(new char[frame.header.sourceSize]);
-        memcpy(frame.header.source.get(), buf, frame.header.sourceSize);
-        buf += frame.header.sourceSize;
+// std::vector<Proto::Frame> Proto::deserialize( //
+//     const uint8_t *const buffer,
+//     const uint32_t bufferSize)
+//{
+//     assert(buffer != nullptr);
 
-        memcpy(&frame.header.destinationSize, buf, sizeof(Header::destinationSize));
-        buf += sizeof(Header::destinationSize);
+//    std::vector<Proto::Frame> allFrames;
 
-        frame.header.destination = std::unique_ptr<char[]>(new char[frame.header.destinationSize]);
-        memcpy(frame.header.destination.get(), buf, frame.header.destinationSize);
-        buf += frame.header.destinationSize;
+//    const uint8_t *buf = buffer; // copy the pointer so it can be moved
+//    uint32_t bytesLeftToParse = bufferSize;
 
-        // Deserialize the payload...
+//    while (bytesLeftToParse > 0)
+//    {
+//        Proto::Frame frame;
 
-        memcpy(&frame.payload.type, buf, sizeof(Payload::type));
-        buf += sizeof(Payload::type);
+//        // Deserialize the header...
+//        memcpy(&frame.header.protoVersion, buf, sizeof(Header::protoVersion));
+//        buf += sizeof(Header::protoVersion);
 
-        memcpy(&frame.payload.size, buf, sizeof(Payload::size));
-        buf += sizeof(Payload::size);
+//        memcpy(&frame.header.timestampSend, buf, sizeof(Header::timestampSend));
+//        buf += sizeof(Header::timestampSend);
 
-        frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[frame.payload.size]);
-        memcpy(frame.payload.payload.get(), buf, frame.payload.size);
-        buf += frame.payload.size;
+//        memcpy(&frame.header.sourceSize, buf, sizeof(Header::sourceSize));
+//        buf += sizeof(Header::sourceSize);
 
-        bytesLeftToParse -= frame.getSize();
-        allFrames.push_back(std::move(frame));
-    }
+//        frame.header.source = std::unique_ptr<char[]>(new char[frame.header.sourceSize]);
+//        memcpy(frame.header.source.get(), buf, frame.header.sourceSize);
+//        buf += frame.header.sourceSize;
 
-    return allFrames;
-}
+//        memcpy(&frame.header.destinationSize, buf, sizeof(Header::destinationSize));
+//        buf += sizeof(Header::destinationSize);
 
-utils::ByteArray Proto::serializeUserConnect( //
-    const Proto::PayloadUserConnect &payload)
-{
-    constexpr uint32_t usernameSizeSize = sizeof(uint32_t);
-    const uint32_t userNameSize = payload.userName.size();
+//        frame.header.destination = std::unique_ptr<char[]>(new
+//        char[frame.header.destinationSize]); memcpy(frame.header.destination.get(), buf,
+//        frame.header.destinationSize); buf += frame.header.destinationSize;
 
-    const uint32_t totalSize =              //
-        usernameSizeSize +                  //
-        userNameSize +                      //
-        crypto::kPubKeySignatureByteCount + //
-        crypto::kPubKeyByteCount;           //
+//        // Deserialize the payload...
 
-    std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(totalSize);
-    uint8_t *bufferPtr = buffer.get();
+//        memcpy(&frame.payload.type, buf, sizeof(Payload::type));
+//        buf += sizeof(Payload::type);
 
-    std::memcpy(bufferPtr, &userNameSize, usernameSizeSize);
-    bufferPtr += usernameSizeSize;
+//        memcpy(&frame.payload.size, buf, sizeof(Payload::size));
+//        buf += sizeof(Payload::size);
 
-    std::memcpy(bufferPtr, payload.userName.c_str(), userNameSize);
-    bufferPtr += userNameSize;
+//        frame.payload.payload = std::unique_ptr<uint8_t[]>(new uint8_t[frame.payload.size]);
+//        memcpy(frame.payload.payload.get(), buf, frame.payload.size);
+//        buf += frame.payload.size;
 
-    std::memcpy(bufferPtr, payload.pubSignKey, crypto::kPubKeySignatureByteCount);
-    bufferPtr += crypto::kPubKeySignatureByteCount;
+//        bytesLeftToParse -= frame.getSize();
+//        allFrames.push_back(std::move(frame));
+//    }
 
-    std::memcpy(bufferPtr, payload.pubEncryptKey, crypto::kPubKeyByteCount);
+//    return allFrames;
+//}
 
-    utils::ByteArray ba;
-    ba.data = std::move(buffer);
-    ba.dataSize = totalSize;
+// utils::ByteArray Proto::serializeUserConnect( //
+//     const Proto::PayloadUserConnect &payload)
+//{
+//     constexpr uint32_t usernameSizeSize = sizeof(uint32_t);
+//     const uint32_t userNameSize = payload.userName.size();
 
-    return ba;
-}
+//    const uint32_t totalSize =              //
+//        usernameSizeSize +                  //
+//        userNameSize +                      //
+//        crypto::kPubKeySignatureByteCount + //
+//        crypto::kPubKeyByteCount;           //
 
-Proto::PayloadUserConnect Proto::deserializeUserConnect( //
-    const uint8_t *const buffer,
-    const uint32_t /*bufferSize*/)
-{
-    PayloadUserConnect payload;
+//    std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(totalSize);
+//    uint8_t *bufferPtr = buffer.get();
 
-    const uint8_t *bufferPtr = buffer;
+//    std::memcpy(bufferPtr, &userNameSize, usernameSizeSize);
+//    bufferPtr += usernameSizeSize;
 
-    uint32_t userNameSize = 0U;
-    std::memcpy(&userNameSize, bufferPtr, sizeof(uint32_t));
-    bufferPtr += sizeof(uint32_t);
+//    std::memcpy(bufferPtr, payload.userName.c_str(), userNameSize);
+//    bufferPtr += userNameSize;
 
-    std::string userName;
-    userName.assign((char *)bufferPtr, userNameSize);
+//    std::memcpy(bufferPtr, payload.pubSignKey, crypto::kPubKeySignatureByteCount);
+//    bufferPtr += crypto::kPubKeySignatureByteCount;
 
-    payload.userName = userName;
+//    std::memcpy(bufferPtr, payload.pubEncryptKey, crypto::kPubKeyByteCount);
 
-    bufferPtr += userNameSize;
+//    utils::ByteArray ba;
+//    ba.data = std::move(buffer);
+//    ba.dataSize = totalSize;
 
-    std::memcpy(payload.pubSignKey, bufferPtr, crypto::kPubKeySignatureByteCount);
-    bufferPtr += crypto::kPubKeySignatureByteCount;
+//    return ba;
+//}
 
-    std::memcpy(payload.pubEncryptKey, bufferPtr, crypto::kPubKeyByteCount);
+// Proto::PayloadUserConnect Proto::deserializeUserConnect( //
+//     const uint8_t *const buffer,
+//     const uint32_t /*bufferSize*/)
+//{
+//     PayloadUserConnect payload;
 
-    return payload;
-}
+//    const uint8_t *bufferPtr = buffer;
 
-Proto::PayloadUserConnectAck Proto::deserializeUserConnectAck( //
-    const uint8_t *const buffer,
-    const uint32_t bufferSize)
-{
-    assert(bufferSize == (crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount));
+//    uint32_t userNameSize = 0U;
+//    std::memcpy(&userNameSize, bufferPtr, sizeof(uint32_t));
+//    bufferPtr += sizeof(uint32_t);
 
-    PayloadUserConnectAck ack;
+//    std::string userName;
+//    userName.assign((char *)bufferPtr, userNameSize);
 
-    memcpy(ack.pubSignKey, buffer, crypto::kPubKeySignatureByteCount);
-    memcpy(ack.pubEncryptKey, buffer + crypto::kPubKeySignatureByteCount, crypto::kPubKeyByteCount);
+//    payload.userName = userName;
 
-    return ack;
-}
+//    bufferPtr += userNameSize;
 
-utils::ByteArray Proto::serializeJoinReqAck(const Proto::PayloadJoinReqAck &payload)
-{
-    const uint32_t roomNameSize = payload.roomName.size();
-    const uint32_t paySize =                      //
-        sizeof(PayloadJoinReqAck::newRoom) +      //
-        sizeof(PayloadJoinReqAck::roomNameSize) + //
-        roomNameSize;
+//    std::memcpy(payload.pubSignKey, bufferPtr, crypto::kPubKeySignatureByteCount);
+//    bufferPtr += crypto::kPubKeySignatureByteCount;
 
-    utils::ByteArray ba{paySize};
-    uint8_t *bufPtr = ba.data.get();
+//    std::memcpy(payload.pubEncryptKey, bufferPtr, crypto::kPubKeyByteCount);
 
-    memcpy(bufPtr, &payload.newRoom, sizeof(PayloadJoinReqAck::newRoom));
-    bufPtr += sizeof(PayloadJoinReqAck::newRoom);
+//    return payload;
+//}
 
-    memcpy(bufPtr, &roomNameSize, sizeof(PayloadJoinReqAck::roomNameSize));
-    bufPtr += sizeof(PayloadJoinReqAck::roomNameSize);
+// Proto::PayloadUserConnectAck Proto::deserializeUserConnectAck( //
+//     const uint8_t *const buffer,
+//     const uint32_t bufferSize)
+//{
+//     assert(bufferSize == (crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount));
 
-    memcpy(bufPtr, payload.roomName.c_str(), roomNameSize);
+//    PayloadUserConnectAck ack;
 
-    return ba;
-}
+//    memcpy(ack.pubSignKey, buffer, crypto::kPubKeySignatureByteCount);
+//    memcpy(ack.pubEncryptKey, buffer + crypto::kPubKeySignatureByteCount,
+//    crypto::kPubKeyByteCount);
 
-Proto::PayloadJoinReqAck Proto::deserializeJoinReqAck( //
-    const uint8_t *const buffer,
-    const uint32_t /*bufferSize*/)
-{
-    Proto::PayloadJoinReqAck payload;
+//    return ack;
+//}
 
-    const uint8_t *bufPtr = buffer;
+// utils::ByteArray Proto::serializeJoinReqAck(const Proto::PayloadJoinReqAck &payload)
+//{
+//     const uint32_t roomNameSize = payload.roomName.size();
+//     const uint32_t paySize =                      //
+//         sizeof(PayloadJoinReqAck::newRoom) +      //
+//         sizeof(PayloadJoinReqAck::roomNameSize) + //
+//         roomNameSize;
 
-    memcpy(&payload.newRoom, bufPtr, sizeof(PayloadJoinReqAck::newRoom));
-    bufPtr += sizeof(PayloadJoinReqAck::newRoom);
+//    utils::ByteArray ba{paySize};
+//    uint8_t *bufPtr = ba.data.get();
 
-    uint32_t roomNameSize;
-    memcpy(&roomNameSize, bufPtr, sizeof(PayloadJoinReqAck::roomNameSize));
-    bufPtr += sizeof(PayloadJoinReqAck::roomNameSize);
+//    memcpy(bufPtr, &payload.newRoom, sizeof(PayloadJoinReqAck::newRoom));
+//    bufPtr += sizeof(PayloadJoinReqAck::newRoom);
 
-    payload.roomName.assign((char *)bufPtr, roomNameSize);
+//    memcpy(bufPtr, &roomNameSize, sizeof(PayloadJoinReqAck::roomNameSize));
+//    bufPtr += sizeof(PayloadJoinReqAck::roomNameSize);
 
-    return payload;
-}
+//    memcpy(bufPtr, payload.roomName.c_str(), roomNameSize);
 
-utils::ByteArray Proto::serializeRequestCurrentSymKey(
-    const Proto::PayloadRequestCurrentSymKey &payload)
-{
-    const uint32_t totalSize = //
-        sizeof(uint32_t) +     //
-        payload.roomName.size();
+//    return ba;
+//}
 
-    utils::ByteArray ba;
-    ba.data = std::make_unique<uint8_t[]>(totalSize);
-    ba.dataSize = totalSize;
+// Proto::PayloadJoinReqAck Proto::deserializeJoinReqAck( //
+//     const uint8_t *const buffer,
+//     const uint32_t /*bufferSize*/)
+//{
+//     Proto::PayloadJoinReqAck payload;
 
-    uint32_t offset = 0;
+//    const uint8_t *bufPtr = buffer;
 
-    memcpy(&ba.data[offset], &payload.roomNameSize, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
+//    memcpy(&payload.newRoom, bufPtr, sizeof(PayloadJoinReqAck::newRoom));
+//    bufPtr += sizeof(PayloadJoinReqAck::newRoom);
 
-    memcpy(&ba.data[offset], payload.roomName.c_str(), payload.roomName.size());
+//    uint32_t roomNameSize;
+//    memcpy(&roomNameSize, bufPtr, sizeof(PayloadJoinReqAck::roomNameSize));
+//    bufPtr += sizeof(PayloadJoinReqAck::roomNameSize);
 
-    return ba;
-}
+//    payload.roomName.assign((char *)bufPtr, roomNameSize);
 
-Proto::PayloadRequestCurrentSymKey Proto::deserializeRequestCurrentSymKey( //
-    const uint8_t *const buffer,
-    const uint32_t /*bufferSize*/)
-{
-    PayloadRequestCurrentSymKey payload;
+//    return payload;
+//}
 
-    memcpy(&payload.roomNameSize, buffer, sizeof(uint32_t));
+// utils::ByteArray Proto::serializeRequestCurrentSymKey(
+//     const Proto::PayloadRequestCurrentSymKey &payload)
+//{
+//     const uint32_t totalSize = //
+//         sizeof(uint32_t) +     //
+//         payload.roomName.size();
 
-    payload.roomName.assign( //
-        (char *)(buffer + sizeof(uint32_t)),
-        payload.roomNameSize);
+//    utils::ByteArray ba;
+//    ba.data = std::make_unique<uint8_t[]>(totalSize);
+//    ba.dataSize = totalSize;
 
-    return payload;
-}
+//    uint32_t offset = 0;
 
-utils::ByteArray Proto::serializeMessage( //
-    const Proto::PayloadMessage &payload)
-{
-    const uint32_t payloadSize = //
-        sizeof(uint32_t) +       // nonce size
-        payload.nonce.dataSize + //
-        sizeof(uint32_t) +       // data size
-        payload.msg.dataSize;
+//    memcpy(&ba.data[offset], &payload.roomNameSize, sizeof(uint32_t));
+//    offset += sizeof(uint32_t);
 
-    utils::ByteArray ba{payloadSize};
-    uint8_t *baPtr = ba.data.get();
+//    memcpy(&ba.data[offset], payload.roomName.c_str(), payload.roomName.size());
 
-    uint32_t offset = 0U;
-    memcpy(baPtr, &payload.nonce.dataSize, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
+//    return ba;
+//}
 
-    memcpy(baPtr + offset, payload.nonce.data.get(), payload.nonce.dataSize);
-    offset += payload.nonce.dataSize;
+// Proto::PayloadRequestCurrentSymKey Proto::deserializeRequestCurrentSymKey( //
+//     const uint8_t *const buffer,
+//     const uint32_t /*bufferSize*/)
+//{
+//     PayloadRequestCurrentSymKey payload;
 
-    memcpy(baPtr + offset, &payload.msg.dataSize, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
+//    memcpy(&payload.roomNameSize, buffer, sizeof(uint32_t));
 
-    memcpy(baPtr + offset, payload.msg.data.get(), payload.msg.dataSize);
+//    payload.roomName.assign( //
+//        (char *)(buffer + sizeof(uint32_t)),
+//        payload.roomNameSize);
 
-    return ba;
-}
+//    return payload;
+//}
 
-Proto::PayloadMessage Proto::deserializeMessage( //
-    const uint8_t *const buffer,
-    const uint32_t /*bufferSize*/)
-{
-    PayloadMessage msg;
+// utils::ByteArray Proto::serializeMessage( //
+//     const Proto::PayloadMessage &payload)
+//{
+//     const uint32_t payloadSize = //
+//         sizeof(uint32_t) +       // nonce size
+//         payload.nonce.dataSize + //
+//         sizeof(uint32_t) +       // data size
+//         payload.msg.dataSize;
 
-    uint32_t offset = 0U;
+//    utils::ByteArray ba{payloadSize};
+//    uint8_t *baPtr = ba.data.get();
 
-    memcpy(&msg.nonce.dataSize, buffer + offset, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
+//    uint32_t offset = 0U;
+//    memcpy(baPtr, &payload.nonce.dataSize, sizeof(uint32_t));
+//    offset += sizeof(uint32_t);
 
-    msg.nonce.data = std::make_unique<uint8_t[]>(msg.nonce.dataSize);
+//    memcpy(baPtr + offset, payload.nonce.data.get(), payload.nonce.dataSize);
+//    offset += payload.nonce.dataSize;
 
-    memcpy(msg.nonce.data.get(), buffer + offset, msg.nonce.dataSize);
-    offset += msg.nonce.dataSize;
+//    memcpy(baPtr + offset, &payload.msg.dataSize, sizeof(uint32_t));
+//    offset += sizeof(uint32_t);
 
-    memcpy(&msg.msg.dataSize, buffer + offset, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
+//    memcpy(baPtr + offset, payload.msg.data.get(), payload.msg.dataSize);
 
-    msg.msg.data = std::make_unique<uint8_t[]>(msg.msg.dataSize);
+//    return ba;
+//}
 
-    memcpy(msg.msg.data.get(), buffer + offset, msg.msg.dataSize);
+// Proto::PayloadMessage Proto::deserializeMessage( //
+//     const uint8_t *const buffer,
+//     const uint32_t /*bufferSize*/)
+//{
+//     PayloadMessage msg;
 
-    return msg;
-}
+//    uint32_t offset = 0U;
 
-uint32_t Proto::Frame::getSize() const
-{
-    constexpr uint32_t kHeaderSizeStatic = //
-        sizeof(Header::protoVersion) +     //
-        sizeof(Header::timestampSend) +    //
-        sizeof(Header::sourceSize) +       //
-        sizeof(Header::destinationSize);
+//    memcpy(&msg.nonce.dataSize, buffer + offset, sizeof(uint32_t));
+//    offset += sizeof(uint32_t);
 
-    constexpr uint32_t kPayloadSizeStatic = //
-        sizeof(Payload::type) +             //
-        sizeof(Payload::size);
+//    msg.nonce.data = std::make_unique<uint8_t[]>(msg.nonce.dataSize);
 
-    const uint32_t headerSize = //
-        kHeaderSizeStatic +     //
-        header.sourceSize +     //
-        header.destinationSize;
+//    memcpy(msg.nonce.data.get(), buffer + offset, msg.nonce.dataSize);
+//    offset += msg.nonce.dataSize;
 
-    const uint32_t payloadSize = //
-        kPayloadSizeStatic +     //
-        payload.size;
+//    memcpy(&msg.msg.dataSize, buffer + offset, sizeof(uint32_t));
+//    offset += sizeof(uint32_t);
 
-    const uint32_t frameSize = headerSize + payloadSize;
-    return frameSize;
-}
+//    msg.msg.data = std::make_unique<uint8_t[]>(msg.msg.dataSize);
 
-Proto::Header &Proto::Frame::getHeader()
-{
-    return header;
-}
+//    memcpy(msg.msg.data.get(), buffer + offset, msg.msg.dataSize);
 
-Proto::Payload &Proto::Frame::getPayload()
-{
-    return payload;
-}
+//    return msg;
+//}
 
-Proto::Payload::Payload()
-    : type{PayloadType::kNone}
-    , size{0U}
-{
-}
+// uint32_t Proto::Frame::getSize() const
+//{
+//     constexpr uint32_t kHeaderSizeStatic = //
+//         sizeof(Header::protoVersion) +     //
+//         sizeof(Header::timestampSend) +    //
+//         sizeof(Header::sourceSize) +       //
+//         sizeof(Header::destinationSize);
 
-Proto::Header::Header()
-    : protoVersion{kProtoVersionCurrent}
-    , timestampSend{0U}
-    , sourceSize{0U}
-    , destinationSize{0U}
-{
-}
+//    constexpr uint32_t kPayloadSizeStatic = //
+//        sizeof(Payload::type) +             //
+//        sizeof(Payload::size);
+
+//    const uint32_t headerSize = //
+//        kHeaderSizeStatic +     //
+//        header.sourceSize +     //
+//        header.destinationSize;
+
+//    const uint32_t payloadSize = //
+//        kPayloadSizeStatic +     //
+//        payload.size;
+
+//    const uint32_t frameSize = headerSize + payloadSize;
+//    return frameSize;
+//}
+
+// Proto::Header &Proto::Frame::getHeader()
+//{
+//     return header;
+// }
+
+// Proto::Payload &Proto::Frame::getPayload()
+//{
+//     return payload;
+// }
+
+// Proto::Payload::Payload()
+//     : type{PayloadType::kNone}
+//     , size{0U}
+//{
+// }
+
+// Proto::Header::Header()
+//     : protoVersion{kProtoVersionCurrent}
+//     , timestampSend{0U}
+//     , sourceSize{0U}
+//     , destinationSize{0U}
+//{
+// }
