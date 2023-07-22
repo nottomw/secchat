@@ -14,7 +14,8 @@ struct KeyAsym;
 }
 
 // TODO: all of this needs to be thoroughly size-checked
-// TODO: use something like protobuf or FlatBuffers instead of this horrendous code
+// TODO: use some serialization lib (nanoprotobuf? FlatBuffers? capnproto?) instead of this
+// horrendous code
 // TODO: some payloads are actualy filled in by the client, should be fixed
 
 class Proto
