@@ -415,6 +415,7 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
         }
 
         requestDestinationUserId = &joinedUser; // found one
+        break;
     }
 
     utils::log("[server] request sym key for room %s from user %s", //
