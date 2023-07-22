@@ -36,7 +36,7 @@ public:
 
         // ------ ENCRYPTED asym only, signed asym by sender:
 
-        kNewSymKeyRequest, // from server, request new sym key generation and broadcast to all users
+        kNewSymKeyRequest, // from server, request new sym key generation from specific user
 
         kChatRoomJoin,   // from user
         kChatRoomJoined, // from server, acknowledge room join
