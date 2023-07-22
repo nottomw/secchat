@@ -56,14 +56,14 @@ private:
         std::shared_ptr<Session> session);
 
     void userConnect();
-    void handleConnectAck(Proto::Frame &frame);
+    void handleConnectAck(proto::Frame &frame);
     void serverJoinRoom(const std::string &roomName);
-    void handleChatRoomJoined(Proto::Frame &frame);
-    void handleUserPubKeys(Proto::Frame &frame);
-    void handleCurrentSymKeyRequest(Proto::Frame &frame);
-    void handleCurrentSymKeyResponse(Proto::Frame &frame);
-    void handleMessageToRoom(Proto::Frame &frame);
-    void handleNewSymKeyRequest(Proto::Frame &frame);
+    void handleChatRoomJoined(proto::Frame &frame);
+    void handleUserPubKeys(proto::Frame &frame);
+    void handleCurrentSymKeyRequest(proto::Frame &frame);
+    void handleCurrentSymKeyResponse(proto::Frame &frame);
+    void handleMessageToRoom(proto::Frame &frame);
+    void handleNewSymKeyRequest(proto::Frame &frame);
 
     void newSymKeyRequested(const std::string &source, const std::string &roomName);
 

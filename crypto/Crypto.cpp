@@ -278,4 +278,69 @@ void KeyAsym::copy(const KeyAsym &k)
     memcpy(mKeyPriv, k.mKeyPriv, kPrivKeyByteCount);
 }
 
+EncryptedData signAndEncrypt( //
+    const utils::ByteArray &ba,
+    const KeyAsymSignature &sig,
+    const KeyAsym &encrypt)
+{
+    crypto::SignedData signedData = //
+        crypto::sign(               //
+            sig,
+            ba.ptr(),
+            ba.size());
+
+    crypto::EncryptedData encryptedData = //
+        crypto::asymEncrypt(encrypt,      //
+                            signedData.data.get(),
+                            signedData.dataSize);
+
+    return encryptedData;
+}
+
+EncryptedData signAndEncrypt(const uint8_t *const data,
+                             const uint32_t dataSize,
+                             const KeyAsymSignature &sig,
+                             const KeyAsym &encrypt)
+{
+    crypto::SignedData signedData = //
+        crypto::sign(               //
+            sig,
+            data,
+            dataSize);
+
+    crypto::EncryptedData encryptedData = //
+        crypto::asymEncrypt(encrypt,      //
+                            signedData.data.get(),
+                            signedData.dataSize);
+
+    return encryptedData;
+}
+
+std::optional<NonsignedData> decryptAndSignVerify( //
+    const uint8_t *const data,
+    const uint32_t dataSize,
+    const KeyAsymSignature &sig,
+    const KeyAsym &encrypt)
+{
+    auto decrypted = crypto::asymDecrypt( //
+        encrypt,
+        data,
+        dataSize);
+
+    auto nonsignedData = crypto::signedVerify( //
+        sig,
+        decrypted.data.get(),
+        decrypted.dataSize);
+
+    return nonsignedData;
+}
+
+std::optional<NonsignedData> decryptAndSignVerify(const char *const data,
+                                                  const uint32_t dataSize,
+                                                  const KeyAsymSignature &sig,
+                                                  const KeyAsym &encrypt)
+{
+    return decryptAndSignVerify((uint8_t *)data, dataSize, sig, encrypt);
+}
+
 } // namespace crypto

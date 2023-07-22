@@ -17,6 +17,28 @@ public:
     ByteArray(const uint32_t size);
     ByteArray(const uint8_t *const newData, const uint32_t newSize);
 
+    // add cast operators so it's a little easier to use
+    // while passing as argument
+    operator size_t() const
+    {
+        return dataSize;
+    }
+
+    operator void *() const
+    {
+        return data.get();
+    }
+
+    uint8_t *ptr() const
+    {
+        return data.get();
+    }
+
+    uint32_t size() const
+    {
+        return dataSize;
+    }
+
     std::unique_ptr<uint8_t[]> data;
     uint32_t dataSize;
 };
@@ -25,8 +47,16 @@ std::string formatCharacters( //
     const uint8_t *const buffer,
     const uint32_t bufferSize);
 
+std::string formatCharacters( //
+    const char *const buffer,
+    const uint32_t bufferSize);
+
 std::string formatCharactersHex( //
     const uint8_t *const buffer,
+    const uint32_t bufferSize);
+
+std::string formatCharactersHex( //
+    const char *const buffer,
     const uint32_t bufferSize);
 
 template <typename... Ts>

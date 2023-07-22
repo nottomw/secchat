@@ -42,6 +42,7 @@ struct KeySym
 
 struct EncryptedData
 {
+    // TODO: should be byte array
     std::unique_ptr<uint8_t[]> data;
     uint32_t dataSize;
 
@@ -111,8 +112,23 @@ std::optional<NonsignedData> signedVerify( //
     const uint32_t bufferSize);
 
 // TODO: implement
-SignedData signAndEncrypt(const utils::ByteArray &ba,
-                          const KeyAsymSignature &sig,
-                          const KeyAsym &encrypt);
+EncryptedData signAndEncrypt(const utils::ByteArray &ba,
+                             const KeyAsymSignature &sig,
+                             const KeyAsym &encrypt);
+
+EncryptedData signAndEncrypt(const uint8_t *const data,
+                             const uint32_t dataSize,
+                             const KeyAsymSignature &sig,
+                             const KeyAsym &encrypt);
+
+std::optional<NonsignedData> decryptAndSignVerify(const uint8_t *const data,
+                                                  const uint32_t dataSize,
+                                                  const KeyAsymSignature &sig,
+                                                  const KeyAsym &encrypt);
+
+std::optional<NonsignedData> decryptAndSignVerify(const char *const data,
+                                                  const uint32_t dataSize,
+                                                  const KeyAsymSignature &sig,
+                                                  const KeyAsym &encrypt);
 
 } // namespace crypto

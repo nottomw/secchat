@@ -113,64 +113,72 @@ void SecchatServer::handlePacket( //
     // forwarded to clients without another serialization.
     const uint8_t *dataOffset = data;
 
-    auto receivedFrames = Proto::deserialize(data, dataLen);
-    for (auto &framesIt : receivedFrames)
+    // TODO: !!!!! can receive multiple frames in single packed?
+    auto receivedFrame = proto::deserializeFrame(data, dataLen);
+    //    for (auto &framesIt : receivedFrames)
+    //    {
+    switch (receivedFrame.payloadtype())
     {
-        Proto::Payload &payload = framesIt.getPayload();
-        switch (payload.type)
-        {
-            case Proto::PayloadType::kUserConnect:
-                handleNewUser(framesIt, session);
-                break;
+        case proto::PayloadType::kUserConnect:
+            handleNewUser(receivedFrame, session);
+            break;
 
-            case Proto::PayloadType::kChatRoomJoin:
-                handleJoinChatRoom(framesIt, session);
-                break;
+        case proto::PayloadType::kChatRoomJoin:
+            handleJoinChatRoom(receivedFrame, session);
+            break;
 
-            case Proto::PayloadType::k$$$MessageToRoom:
-                handleMessageToChatRoom(framesIt, session, dataOffset);
-                break;
+        case proto::PayloadType::kMessageToRoom:
+            handleMessageToChatRoom(receivedFrame, session, dataOffset);
+            break;
 
-            case Proto::PayloadType::kChatGroupCurrentSymKeyRequest:
-                handleChatGroupSymKeyRequest(framesIt);
-                break;
+        case proto::PayloadType::kChatGroupCurrentSymKeyRequest:
+            handleChatGroupSymKeyRequest(receivedFrame);
+            break;
 
-            case Proto::PayloadType::kChatGroupCurrentSymKeyResponse:
-                handleChatGroupSymKeyResponse(framesIt, dataOffset);
-                break;
+        case proto::PayloadType::kChatGroupCurrentSymKeyResponse:
+            handleChatGroupSymKeyResponse(receivedFrame, dataOffset);
+            break;
 
-            default:
+        default:
+            {
                 const std::string invalidFrameStrHex = //
                     utils::formatCharactersHex(data, dataLen);
-                utils::log("[server] received incorrect frame, drop: [%s]",
+                utils::log("[server] received incorrect frame from %s - drop, type: %d [ %s ]",
+                           receivedFrame.source().c_str(),
+                           receivedFrame.payloadtype(),
                            invalidFrameStrHex.c_str());
-                break;
-        }
-
-        dataOffset += framesIt.getSize();
+            }
+            break;
     }
+
+    //    dataOffset += framesIt.getSize();
+    //    }
 }
 
 void SecchatServer::handleNewUser( //
-    Proto::Frame &frame,
+    proto::Frame &frame,
     std::shared_ptr<Session> session)
 {
-    Proto::Payload &payload = frame.getPayload();
-    const uint32_t payloadSize = payload.size;
+    auto &pay = frame.payload();
 
-    Proto::PayloadUserConnect newUserFrame = //
-        Proto::deserializeUserConnect(payload.payload.get(), payloadSize);
+    proto::PayloadUserConnectOrAck newUserFrame =
+        proto::deserializePayload<proto::PayloadUserConnectOrAck>(pay.data(), pay.size());
 
-    const std::string signKeyHex = utils::formatCharactersHex(newUserFrame.pubSignKey, 5);
-    const std::string encryptKeyHex = utils::formatCharactersHex(newUserFrame.pubEncryptKey, 5);
+    const std::string newUserName = newUserFrame.username();
+
+    const std::string signKeyHex =
+        utils::formatCharactersHex((uint8_t *)newUserFrame.pubsignkey().data(), 5);
+    const std::string encryptKeyHex =
+        utils::formatCharactersHex((uint8_t *)newUserFrame.pubencryptkey().data(), 5);
+
     utils::log("[server] received user %s pubsign [ %s ] and pub encrypt [ %s ] keys", //
-               newUserFrame.userName.c_str(),
+               newUserName.c_str(),
                signKeyHex.c_str(),
                encryptKeyHex.c_str());
 
     crypto::KeyAsym userEncryptionPubKey;
 
-    const auto existingUser = verifyUserExists(newUserFrame.userName);
+    const auto existingUser = verifyUserExists(newUserName);
     if (existingUser)
     {
         // TODO: If this is a existing user, verify the pubsign/pub keys match!!!
@@ -183,16 +191,22 @@ void SecchatServer::handleNewUser( //
         userEncryptionPubKey = user->keyEncrypt;
 
         utils::log("[server] user %s already exists (for now update the session)",
-                   newUserFrame.userName.c_str());
+                   newUserName.c_str());
     }
     else
     {
         User user;
-        user.mUserName = newUserFrame.userName;
+        user.mUserName = newUserName;
         user.mSession = session;
 
-        memcpy(user.keySign.mKeyPub, newUserFrame.pubSignKey, crypto::kPubKeySignatureByteCount);
-        memcpy(user.keyEncrypt.mKeyPub, newUserFrame.pubEncryptKey, crypto::kPubKeyByteCount);
+        memcpy( //
+            user.keySign.mKeyPub,
+            newUserFrame.pubsignkey().data(),
+            crypto::kPubKeySignatureByteCount);
+        memcpy( //
+            user.keyEncrypt.mKeyPub,
+            newUserFrame.pubencryptkey().data(),
+            crypto::kPubKeyByteCount);
 
         userEncryptionPubKey = user.keyEncrypt;
 
@@ -201,43 +215,52 @@ void SecchatServer::handleNewUser( //
         mUsers.push_back(std::move(user));
         usersCount = mUsers.size();
 
-        utils::log("[server] new user created: %s, pubsign/pub keys received",
-                   newUserFrame.userName.c_str());
+        utils::log("[server] new user created: %s, pubsign/pub keys received", newUserName.c_str());
         utils::log("[server] currently %d users active", usersCount);
     }
 
-    // reply with server's pubsign/pub keys (encrypted with users's pub key)
-
-    std::string source{"server"};
-    std::string destination = newUserFrame.userName;
-
-    Proto::Frame replyFrame;
-
-    Proto::populateHeader(replyFrame, source, destination);
-
-    Proto::populatePayloadUserConnectAck( //
-        replyFrame,
-        mKeyMyAsymSign,
-        mKeyMyAsym,
-        userEncryptionPubKey);
-
-    auto replyFrameSer = Proto::serialize(replyFrame);
-
-    const bool sendOk = mTransport.sendBlocking(replyFrameSer.get(), replyFrame.getSize(), session);
-    if (sendOk == false)
     {
-        utils::log("[server] FAILED to ACK connect from user %s", destination.c_str());
+        // reply with server's pubsign/pub keys (encrypted with users's pub key)
+
+        std::string source{"server"};
+        std::string destination = newUserName;
+
+        proto::PayloadUserConnectOrAck payReply;
+        payReply.set_username(newUserName);
+        payReply.set_pubsignkey(mKeyMyAsymSign.mKeyPub, crypto::kPubKeySignatureByteCount);
+        payReply.set_pubencryptkey(mKeyMyAsym.mKeyPub, crypto::kPubKeyByteCount);
+        payReply.set_isack(true);
+
+        auto payReplySer = proto::serializePayload(payReply);
+
+        auto payReplyEncrypted =
+            crypto::asymEncrypt(userEncryptionPubKey, payReplySer.ptr(), payReplySer.size());
+
+        proto::Frame replyFrame;
+        replyFrame.set_source("server");
+        replyFrame.set_destination(newUserName);
+        replyFrame.set_payloadtype(proto::PayloadType::kUserConnectAck);
+        replyFrame.set_payload(payReplyEncrypted.data.get(), payReplyEncrypted.dataSize);
+
+        auto replyFrameSer = proto::serializeFrame(replyFrame);
+
+        const bool sendOk =          //
+            mTransport.sendBlocking( //
+                replyFrameSer.ptr(),
+                replyFrameSer.size(),
+                session);
+        if (sendOk == false)
+        {
+            utils::log("[server] FAILED to ACK connect from user %s", destination.c_str());
+        }
     }
 }
 
 void SecchatServer::handleJoinChatRoom( //
-    Proto::Frame &frame,
+    proto::Frame &frame,
     std::shared_ptr<Session> session)
 {
-    Proto::Header &header = frame.getHeader();
-    Proto::Payload &payload = frame.getPayload();
-
-    const std::string userName{(char *)header.source.get(), header.sourceSize};
+    auto &userName = frame.source();
 
     // Find if the user exists
     auto userOk = verifyUserExists(userName);
@@ -251,16 +274,13 @@ void SecchatServer::handleJoinChatRoom( //
 
     User *const userHandle = *userOk; // dereference std::optional
 
-    auto decrypted = crypto::asymDecrypt( //
-        mKeyMyAsym,
-        payload.payload.get(),
-        payload.size);
-    // TODO: there should be a option to check if decryption OK
-
-    auto nonsignedDataOpt = crypto::signedVerify( //
-        userHandle->keySign,
-        decrypted.data.get(),
-        decrypted.dataSize);
+    auto &pay = frame.payload();
+    auto nonsignedDataOpt =           //
+        crypto::decryptAndSignVerify( //
+            pay.data(),
+            pay.size(),
+            userHandle->keySign,
+            mKeyMyAsym);
     if (!nonsignedDataOpt)
     {
         utils::log("[server] signature verification failed, source: %s", userName.c_str());
@@ -269,22 +289,22 @@ void SecchatServer::handleJoinChatRoom( //
 
     crypto::NonsignedData &nonsignedData = *nonsignedDataOpt;
 
-    Proto::PayloadJoinReqAck join = //
-        Proto::deserializeJoinReqAck(nonsignedData.data.get(), nonsignedData.dataSize);
+    proto::PayloadJoinRequestOrAck join = //
+        proto::deserializePayload<proto::PayloadJoinRequestOrAck>(nonsignedData.data.get(),
+                                                                  nonsignedData.dataSize);
 
+    const std::string roomName = join.roomname();
     utils::log("[server] chatroom join requested from user %s, room name: %s", //
                userName.c_str(),
-               join.roomName.c_str());
+               roomName.c_str());
 
     // TODO: quarantine: on join user should be "quarantined" for a couple of
     // seconds, so the other users won't message anything to unknown user
 
     bool newRoomCreated = false;
-    const bool joined = joinUserToRoom(*userHandle, join.roomName, newRoomCreated);
+    const bool joined = joinUserToRoom(*userHandle, roomName, newRoomCreated);
     if (joined)
     {
-        std::string source{"server"};
-
         // if new room creation - request sym key generate too
         if (newRoomCreated)
         {
@@ -292,44 +312,49 @@ void SecchatServer::handleJoinChatRoom( //
                        userName.c_str());
         }
 
-        Proto::Frame frame;
-        Proto::populateHeader(frame, source, userName);
-        Proto::populatePayloadChatRoomJoinOrAck( //
-            frame,
-            join.roomName,
-            mKeyMyAsymSign,
-            userHandle->keyEncrypt,
-            true,
-            newRoomCreated);
+        proto::PayloadJoinRequestOrAck joinAck;
+        joinAck.set_roomname(roomName);
+        joinAck.set_newroom(newRoomCreated);
 
-        auto rawFrame = Proto::serialize(frame);
+        auto joinAckSer = proto::serializePayload(joinAck);
 
-        const bool sendOk = mTransport.sendBlocking(rawFrame.get(), frame.getSize(), session);
-        assert(sendOk);
+        auto joinAckEncrypted = crypto::signAndEncrypt(
+            joinAckSer.data.get(), joinAckSer.dataSize, mKeyMyAsymSign, userHandle->keyEncrypt);
+
+        proto::Frame frameAck;
+        frame.set_source("server");
+        frame.set_destination(userName);
+        frame.set_payloadtype(proto::PayloadType::kChatRoomJoined);
+        frame.set_payload(joinAckEncrypted.data.get(), joinAckEncrypted.dataSize);
+
+        auto frameAckSer = proto::serializeFrame(frameAck);
+
+        const bool sendOk = mTransport.sendBlocking(frameAckSer.ptr(), frameAckSer.size(), session);
+        if (sendOk == false)
+        {
+            utils::log("[server] failed to ack join for user %s room %s",
+                       userName.c_str(),
+                       roomName.c_str());
+            return;
+        }
 
         if (newRoomCreated == false)
         {
             // user just joined new room, send out his keys to all and all keys to him
-            userJoinedPubKeysExchange(*userHandle, join.roomName);
+            userJoinedPubKeysExchange(*userHandle, roomName);
         }
     }
 }
 
 void SecchatServer::handleMessageToChatRoom( //
-    Proto::Frame &frame,
+    proto::Frame &frame,
     std::shared_ptr<Session> session,
     const uint8_t *const rawBuffer)
 {
-    const Proto::Header &header = frame.getHeader();
-    const Proto::Payload &payload = frame.getPayload();
+    std::string userName = frame.source();
+    std::string roomName = frame.destination();
 
-    std::string userName;
-    std::string roomName;
-
-    userName.assign(header.source.get(), header.sourceSize);
-    roomName.assign(header.destination.get(), header.destinationSize);
-
-    const auto msgStr = utils::formatCharacters(payload.payload.get(), payload.size);
+    const auto msgStr = utils::formatCharacters(frame.payload().data(), frame.payload().size());
     utils::log("[server] RX MSG: [%s]<%s>: %s", //
                roomName.c_str(),
                userName.c_str(),
@@ -352,21 +377,20 @@ void SecchatServer::handleMessageToChatRoom( //
             continue;
         }
 
-        const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
+        const bool sendOk =
+            mTransport.sendBlocking(rawBuffer, frame.ByteSizeLong(), userInRoomSession);
         if (sendOk == false)
         {
             utils::log("[server] failed to send message to user %s", user.mUserName.c_str());
+            continue;
         }
     }
 }
 
 void SecchatServer::handleChatGroupSymKeyRequest( //
-    Proto::Frame &frame)
+    proto::Frame &frame)
 {
-    Proto::Header &header = frame.getHeader();
-    Proto::Payload &payload = frame.getPayload();
-
-    const std::string source{header.source.get(), header.sourceSize};
+    const std::string source{frame.source()};
     utils::log("[server] received sym key request from %s", source.c_str());
 
     auto userOk = verifyUserExists(source);
@@ -378,11 +402,10 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
 
     User *userHandleSource = *userOk;
 
-    auto decrypted = //
-        crypto::asymDecrypt(mKeyMyAsym, payload.payload.get(), payload.size);
+    auto &pay = frame.payload();
 
     auto unsignedPay =
-        crypto::signedVerify(userHandleSource->keySign, decrypted.data.get(), decrypted.dataSize);
+        crypto::decryptAndSignVerify(pay.data(), pay.size(), userHandleSource->keySign, mKeyMyAsym);
     if (!unsignedPay)
     {
         utils::log("[server] signature verification failed for sym key request, drop");
@@ -448,13 +471,11 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
 }
 
 void SecchatServer::handleChatGroupSymKeyResponse( //
-    Proto::Frame &frame,
+    proto::Frame &frame,
     const uint8_t *const rawBuffer)
 {
-    Proto::Header &header = frame.getHeader();
-
-    const std::string source{(char *)header.source.get(), header.sourceSize};
-    const std::string dest{(char *)header.destination.get(), header.destinationSize};
+    const std::string source{frame.source()};
+    const std::string dest{frame.destination()};
 
     utils::log("[server] forwarding sym key from user %s to user %s", //
                source.c_str(),
@@ -470,7 +491,14 @@ void SecchatServer::handleChatGroupSymKeyResponse( //
 
     User *userHandle = *userHandleOpt;
 
-    mTransport.sendBlocking(rawBuffer, frame.getSize(), userHandle->mSession);
+    const bool ok = mTransport.sendBlocking(rawBuffer, frame.ByteSizeLong(), userHandle->mSession);
+    if (!ok)
+    {
+        utils::log("[server] failed to forward sym key from user %s to user %s",
+                   source.c_str(),
+                   dest.c_str());
+        return;
+    }
 }
 
 bool SecchatServer::joinUserToRoom( //
@@ -592,22 +620,25 @@ bool SecchatServer::requestNewSymKeyFromUser( //
     const std::string &roomName,
     SecchatServer::User &userHandle)
 {
-    Proto::Frame frame;
-    Proto::populateHeader(frame, "server", roomName);
+    proto::PayloadNewSymKeyRequest pay;
+    pay.set_roomname(roomName);
 
-    Proto::populatePayloadNewSymKeyRequest( //
-        frame,
-        roomName,
-        mKeyMyAsymSign,
-        userHandle.keyEncrypt);
+    auto paySer = proto::serializePayload(pay);
 
-    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frame);
-    assert(buffer);
+    auto paySerEncrypted = crypto::signAndEncrypt(paySer, mKeyMyAsymSign, userHandle.keyEncrypt);
+
+    proto::Frame frame;
+    frame.set_source("server");
+    frame.set_destination(roomName);
+    frame.set_payloadtype(proto::PayloadType::kNewSymKeyRequest);
+    frame.set_payload(paySerEncrypted.data.get(), paySerEncrypted.dataSize);
+
+    auto buffer = proto::serializeFrame(frame);
 
     const bool sendOk =          //
         mTransport.sendBlocking( //
-            buffer.get(),
-            frame.getSize(),
+            buffer.ptr(),
+            buffer.size(),
             userHandle.mSession);
 
     return sendOk;
@@ -698,45 +729,32 @@ void SecchatServer::sendUserKeysToUser( //
                userNameSrc.c_str(),
                userNameDest.c_str());
 
-    Proto::Frame userKeysframe;
-    Proto::populateHeader(userKeysframe, userNameSrc, userNameDest);
+    proto::PayloadUserPubKeys payUserPubKeys;
+    payUserPubKeys.set_pubsignkey(keysToSendSign.mKeyPub, crypto::kPubKeySignatureByteCount);
+    payUserPubKeys.set_pubencryptkey(keysToSendEncrypt.mKeyPub, crypto::kPubKeyByteCount);
 
-    const uint32_t payloadKeysSize = crypto::kPubKeySignatureByteCount + crypto::kPubKeyByteCount;
-    utils::ByteArray baKeys{payloadKeysSize};
-    uint8_t *payloadKeys = baKeys.data.get();
+    auto payUserPubKeysSer = proto::serializePayload(payUserPubKeys);
+    auto payUserPubKeysEncrypted =
+        crypto::signAndEncrypt(payUserPubKeysSer, mKeyMyAsymSign, userHandleDest->keyEncrypt);
 
-    memcpy( //
-        payloadKeys,
-        keysToSendSign.mKeyPub,
-        crypto::kPubKeySignatureByteCount);
-    memcpy( //
-        payloadKeys + crypto::kPubKeySignatureByteCount,
-        keysToSendEncrypt.mKeyPub,
-        crypto::kPubKeyByteCount);
+    proto::Frame userKeysframe;
+    userKeysframe.set_source(userNameSrc);
+    userKeysframe.set_destination(userNameDest);
+    userKeysframe.set_payloadtype(proto::PayloadType::kUserPubKeys);
+    userKeysframe.set_payload(payUserPubKeysEncrypted.data.get(), payUserPubKeysEncrypted.dataSize);
 
-    // signing & encrypting with server keys?
-    auto signedKeys = //
-        crypto::sign(mKeyMyAsymSign, payloadKeys, payloadKeysSize);
-    auto encryptedKeys =
-        crypto::asymEncrypt(userHandleDest->keyEncrypt, signedKeys.data.get(), signedKeys.dataSize);
-
-    Proto::populatePayload( //
-        userKeysframe,
-        Proto::PayloadType::kUserPubKeys,
-        encryptedKeys.data.get(),
-        encryptedKeys.dataSize);
-
-    auto serializedUserKeysFrame = Proto::serialize(userKeysframe);
+    auto serializedUserKeysFrame = proto::serializeFrame(userKeysframe);
 
     const bool sendOk = mTransport.sendBlocking( //
-        serializedUserKeysFrame.get(),
-        userKeysframe.getSize(),
+        serializedUserKeysFrame.ptr(),
+        serializedUserKeysFrame.size(),
         userHandleDest->mSession);
     if (sendOk == false)
     {
         utils::log("[server] failed to send pub keys of user %s to %s",
                    userNameSrc.c_str(),
                    userNameDest.c_str());
+        return;
     }
 }
 
@@ -745,24 +763,26 @@ bool SecchatServer::forwardSymKeyRequest( //
     SecchatServer::User &sourceUserHandle,
     SecchatServer::User &destUserHandle)
 {
-    Proto::Frame frameSymKeyRequest;
-    Proto::populateHeader(frameSymKeyRequest, sourceUserHandle.mUserName, destUserHandle.mUserName);
+    proto::PayloadChatGroupCurrentSymKeyRequestOrResponse payUserKeys;
+    payUserKeys.set_roomname(roomName);
 
-    Proto::populatePayloadCurrentSymKeyRequest( //
-        frameSymKeyRequest,
-        roomName,
-        mKeyMyAsymSign,
-        destUserHandle.keyEncrypt);
+    auto payUserKeysSer = proto::serializePayload(payUserKeys);
+    auto payUserKeysEncrypted =
+        crypto::signAndEncrypt(payUserKeysSer, mKeyMyAsymSign, destUserHandle.keyEncrypt);
 
-    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frameSymKeyRequest);
-    assert(buffer);
+    proto::Frame frameSymKeyRequest;
+    frameSymKeyRequest.set_source(sourceUserHandle.mUserName);
+    frameSymKeyRequest.set_destination(destUserHandle.mUserName);
+    frameSymKeyRequest.set_payloadtype(proto::PayloadType::kChatGroupCurrentSymKeyRequest);
+    frameSymKeyRequest.set_payload(payUserKeysEncrypted.data.get(), payUserKeysEncrypted.dataSize);
+
+    auto frameSymKeyRequestSer = proto::serializeFrame(frameSymKeyRequest);
 
     const bool sendOk =          //
         mTransport.sendBlocking( //
-            buffer.get(),
-            frameSymKeyRequest.getSize(),
+            frameSymKeyRequestSer.ptr(),
+            frameSymKeyRequestSer.size(),
             destUserHandle.mSession);
-
     if (sendOk == false)
     {
         utils::log("[server] sym key request - failed - user disconnected?...");

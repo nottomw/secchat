@@ -70,3 +70,13 @@ utils::ByteArray::ByteArray( //
 {
     memcpy(data.get(), newData, newSize);
 }
+
+std::string utils::formatCharacters(const char *const buffer, const uint32_t bufferSize)
+{
+    return formatCharacters((uint8_t *)buffer, bufferSize);
+}
+
+std::string utils::formatCharactersHex(const char *const buffer, const uint32_t bufferSize)
+{
+    return formatCharactersHex((uint8_t *)buffer, bufferSize);
+}

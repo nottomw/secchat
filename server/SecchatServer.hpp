@@ -73,23 +73,23 @@ private:
         std::shared_ptr<Session> session);
 
     void handleNewUser( //
-        Proto::Frame &frame,
+        proto::Frame &frame,
         std::shared_ptr<Session> session);
 
     void handleJoinChatRoom( //
-        Proto::Frame &frame,
+        proto::Frame &frame,
         std::shared_ptr<Session> session);
 
     void handleMessageToChatRoom( //
-        Proto::Frame &frame,
+        proto::Frame &frame,
         std::shared_ptr<Session> session,
         const uint8_t *const rawBuffer);
 
     void handleChatGroupSymKeyRequest( //
-        Proto::Frame &frame);
+        proto::Frame &frame);
 
     void handleChatGroupSymKeyResponse( //
-        Proto::Frame &frame,
+        proto::Frame &frame,
         const uint8_t *const rawBuffer);
 
     // for now "newRoomCreated", should be something nicer

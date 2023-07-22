@@ -12,50 +12,53 @@
 namespace proto
 {
 
-constexpr uint64_t genProtoVersion(const uint32_t major, const uint32_t minor)
+utils::ByteArray serializeFrame(proto::Frame &frame);
+
+Frame deserializeFrame(const utils::ByteArray &ba);
+Frame deserializeFrame(const uint8_t *const data, const uint32_t dataSize);
+
+template <typename T>
+utils::ByteArray serializePayload(const T &pay)
 {
-    return (((uint64_t)major) << 32) | (((uint64_t)minor));
+    utils::ByteArray ba{(uint32_t)pay.ByteSizeLong()};
+
+    const bool ok = pay.SerializeToArray(ba, ba);
+    assert(ok);
+
+    return ba;
 }
 
-constexpr uint64_t kProtoVersionCurrent = genProtoVersion(1, 0);
-
-enum class PayloadType
+template <typename T>
+T deserializePayload(const utils::ByteArray &ba)
 {
-    kNone,
+    T pay;
 
-    // ------ PLAINTEXT messages, not signed
+    const bool ok = pay.ParseFromArray(ba, ba);
+    assert(ok);
 
-    kUserConnect, // from user, contains pub keys (sign & encrypt)
+    return pay;
+}
 
-    // ------ ENCRYPTED asym only
+template <typename T>
+T deserializePayload(const uint8_t *const data, const uint32_t dataSize)
+{
+    T pay;
 
-    kUserConnectAck, // from server, contains servers pub keys (sign & encrypt), encrypted with
-                     // user pub key
+    const bool ok = pay.ParseFromArray(data, dataSize);
+    assert(ok);
 
-    // ------ ENCRYPTED asym only, signed asym by sender:
+    return pay;
+}
 
-    kNewSymKeyRequest, // from server, request new sym key generation from specific user
+template <typename T>
+T deserializePayload(const char *const data, const uint32_t dataSize)
+{
+    T pay;
 
-    kChatRoomJoin,   // from user
-    kChatRoomJoined, // from server, acknowledge room join
-    kChatRoomLeave,  // from user
+    const bool ok = pay.ParseFromArray(data, dataSize);
+    assert(ok);
 
-    // TODO: user should get a prompt (yes/no) to confirm he wants to provide the keys?
-    kChatGroupCurrentSymKeyRequest,  // from user, request sym key, sent to server, server
-                                     // forwards
-    kUserPubKeys,                    // from server, send other user pub key to requesting user
-    kChatGroupCurrentSymKeyResponse, // from user, respond with asym key encrypted with
-                                     // requesting user pubkey
-
-    // ------ ENCRYPTED messages sym, signed asym by sender:
-
-    k$$$MessageToRoom, // from user, encrypted sym, signed asym
-    k$$$MessageToUser, // from user, encrypted sym, signed asym
-
-    k$$$UserAsymKeyChanged, // send by user - new pubkey, signed with old asym key, encrypted
-                            // sym
-};
-
-void serialize(proto::Frame &frame);
+    return pay;
+}
 
 }; // namespace proto

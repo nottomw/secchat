@@ -2,6 +2,46 @@ syntax = "proto2";
 
 package proto;
 
+enum PayloadType
+{
+    kNone = 0;
+
+    // ------ PLAINTEXT messages, not signed
+
+    // from user, contains pub keys (sign & encrypt)
+    kUserConnect = 1;
+
+    // ------ ENCRYPTED asym only
+
+    // from server, contains servers pub keys (sign & encrypt), encrypted with
+    // user pub key
+    kUserConnectAck = 2;
+
+    // ------ ENCRYPTED asym only, signed asym by sender:
+
+    // from server, request new sym key generation from specific user
+    kNewSymKeyRequest = 3;
+
+    kChatRoomJoin = 4;   // from user
+    kChatRoomJoined = 5; // from server, acknowledge room join
+    kChatRoomLeave = 6;  // from user
+
+    // TODO: user should get a prompt (yes/no) to confirm he wants to provide the keys?
+    kChatGroupCurrentSymKeyRequest = 7;  // from user, request sym key, sent to server, server
+                                     // forwards
+    kUserPubKeys = 8;                    // from server, send other user pub key to requesting user
+    kChatGroupCurrentSymKeyResponse = 9; // from user, respond with asym key encrypted with
+                                     // requesting user pubkey
+
+    // ------ ENCRYPTED messages sym, signed asym by sender:
+
+    kMessageToRoom = 10; // from user, encrypted sym, signed asym
+    kMessageToUser = 11; // from user, encrypted sym, signed asym
+
+    kUserAsymKeyChanged = 12; // send by user - new pubkey, signed with old asym key, encrypted
+                            // sym
+};
+
 message Frame {
     required uint64 protoVersion = 1;
     required uint64 timestampSend = 2;
@@ -39,4 +79,8 @@ message PayloadMessage {
 message PayloadUserPubKeys {
     required bytes pubSignKey = 1; // crypto::kPubKeySignatureByteCount
     required bytes pubEncryptKey = 2; // crypto::kPubKeyByteCount
+}
+
+message PayloadNewSymKeyRequest {
+    required string roomName = 1;
 }
