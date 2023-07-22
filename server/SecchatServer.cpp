@@ -112,47 +112,48 @@ void SecchatServer::handlePacket( //
     // Track the offset of a specific frame in raw buffer so it can be easily
     // forwarded to clients without another serialization.
     const uint8_t *dataOffset = data;
+    uint32_t bytesLeft = dataLen;
 
-    // TODO: !!!!! can receive multiple frames in single packed?
-    auto receivedFrame = proto::deserializeFrame(data, dataLen);
-    //    for (auto &framesIt : receivedFrames)
-    //    {
-    switch (receivedFrame.payloadtype())
+    auto receivedFrame = proto::deserializeFrame(dataOffset, bytesLeft);
+    while (bytesLeft > 0)
     {
-        case proto::PayloadType::kUserConnect:
-            handleNewUser(receivedFrame, session);
-            break;
+        switch (receivedFrame.payloadtype())
+        {
+            case proto::PayloadType::kUserConnect:
+                handleNewUser(receivedFrame, session);
+                break;
 
-        case proto::PayloadType::kChatRoomJoin:
-            handleJoinChatRoom(receivedFrame, session);
-            break;
+            case proto::PayloadType::kChatRoomJoin:
+                handleJoinChatRoom(receivedFrame, session);
+                break;
 
-        case proto::PayloadType::kMessageToRoom:
-            handleMessageToChatRoom(receivedFrame, session, dataOffset);
-            break;
+            case proto::PayloadType::kMessageToRoom:
+                handleMessageToChatRoom(receivedFrame, session, dataOffset);
+                break;
 
-        case proto::PayloadType::kChatGroupCurrentSymKeyRequest:
-            handleChatGroupSymKeyRequest(receivedFrame);
-            break;
+            case proto::PayloadType::kChatGroupCurrentSymKeyRequest:
+                handleChatGroupSymKeyRequest(receivedFrame);
+                break;
 
-        case proto::PayloadType::kChatGroupCurrentSymKeyResponse:
-            handleChatGroupSymKeyResponse(receivedFrame, dataOffset);
-            break;
+            case proto::PayloadType::kChatGroupCurrentSymKeyResponse:
+                handleChatGroupSymKeyResponse(receivedFrame, dataOffset);
+                break;
 
-        default:
-            {
-                const std::string invalidFrameStrHex = //
-                    utils::formatCharactersHex(data, dataLen);
-                utils::log("[server] received incorrect frame from %s - drop, type: %d [ %s ]",
-                           receivedFrame.source().c_str(),
-                           receivedFrame.payloadtype(),
-                           invalidFrameStrHex.c_str());
-            }
-            break;
+            default:
+                {
+                    const std::string invalidFrameStrHex = //
+                        utils::formatCharactersHex(data, dataLen);
+                    utils::log("[server] received incorrect frame from %s - drop, type: %d [ %s ]",
+                               receivedFrame.source().c_str(),
+                               receivedFrame.payloadtype(),
+                               invalidFrameStrHex.c_str());
+                }
+                break;
+        }
+
+        bytesLeft -= receivedFrame.ByteSizeLong();
+        dataOffset += receivedFrame.ByteSizeLong();
     }
-
-    //    dataOffset += framesIt.getSize();
-    //    }
 }
 
 void SecchatServer::handleNewUser( //
@@ -322,10 +323,10 @@ void SecchatServer::handleJoinChatRoom( //
             joinAckSer.data.get(), joinAckSer.dataSize, mKeyMyAsymSign, userHandle->keyEncrypt);
 
         proto::Frame frameAck;
-        frame.set_source("server");
-        frame.set_destination(userName);
-        frame.set_payloadtype(proto::PayloadType::kChatRoomJoined);
-        frame.set_payload(joinAckEncrypted.data.get(), joinAckEncrypted.dataSize);
+        frameAck.set_source("server");
+        frameAck.set_destination(userName);
+        frameAck.set_payloadtype(proto::PayloadType::kChatRoomJoined);
+        frameAck.set_payload(joinAckEncrypted.data.get(), joinAckEncrypted.dataSize);
 
         auto frameAckSer = proto::serializeFrame(frameAck);
 
@@ -404,15 +405,19 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
 
     auto &pay = frame.payload();
 
-    auto unsignedPay =
-        crypto::decryptAndSignVerify(pay.data(), pay.size(), userHandleSource->keySign, mKeyMyAsym);
+    auto unsignedPay = crypto::decryptAndSignVerify(
+        pay.data(), pay.length(), userHandleSource->keySign, mKeyMyAsym);
     if (!unsignedPay)
     {
         utils::log("[server] signature verification failed for sym key request, drop");
         return;
     }
 
-    const std::string roomName{(char *)unsignedPay->data.get(), unsignedPay->dataSize};
+    proto::PayloadChatGroupCurrentSymKeyRequestOrResponse payCurrentSymKeyReq = //
+        proto::deserializePayload<proto::PayloadChatGroupCurrentSymKeyRequestOrResponse>(
+            unsignedPay->data.get(), unsignedPay->dataSize);
+
+    std::string roomName = payCurrentSymKeyReq.roomname();
 
     auto roomHandleOpt = findRoomByName(roomName);
     if (!roomHandleOpt)

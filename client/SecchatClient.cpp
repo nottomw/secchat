@@ -46,9 +46,10 @@ void SecchatClient::connectToServer(const std::string &ipAddr, const uint16_t po
     mChatReader = std::thread{[&]() { //
         while (mReaderShouldRun)
         {
-            uint8_t rawBuf[1024];
+            constexpr uint32_t rawBufSize = 1024;
+            uint8_t rawBuf[rawBufSize];
             uint32_t recvdLen = 0;
-            const auto session = mTransport.receiveBlocking(rawBuf, 1024, &recvdLen);
+            const auto session = mTransport.receiveBlocking(rawBuf, rawBufSize, &recvdLen);
             auto sessionShared = session.lock();
             if (sessionShared)
             {
@@ -152,52 +153,57 @@ void SecchatClient::handlePacket( //
     const uint32_t dataLen,
     std::shared_ptr<Session> /*session*/)
 {
-    // TODO: !!!!! can receive multiple frames in single packed?
-    auto receivedFrame = proto::deserializeFrame(data, dataLen);
-    //    for (auto &framesIt : receivedFrames)
-    //    {
-    switch (receivedFrame.payloadtype())
+    const uint8_t *dataOffset = data;
+    uint32_t bytesLeft = dataLen;
+
+    auto receivedFrame = proto::deserializeFrame(dataOffset, bytesLeft);
+    while (bytesLeft > 0)
     {
-        case proto::PayloadType::kUserConnectAck:
-            handleConnectAck(receivedFrame);
-            break;
+        switch (receivedFrame.payloadtype())
+        {
+            case proto::PayloadType::kUserConnectAck:
+                handleConnectAck(receivedFrame);
+                break;
 
-        case proto::PayloadType::kChatRoomJoined:
-            handleChatRoomJoined(receivedFrame);
-            break;
+            case proto::PayloadType::kChatRoomJoined:
+                handleChatRoomJoined(receivedFrame);
+                break;
 
-        case proto::PayloadType::kMessageToRoom:
-            handleMessageToRoom(receivedFrame);
-            break;
+            case proto::PayloadType::kMessageToRoom:
+                handleMessageToRoom(receivedFrame);
+                break;
 
-        case proto::PayloadType::kUserPubKeys:
-            handleUserPubKeys(receivedFrame);
-            break;
+            case proto::PayloadType::kUserPubKeys:
+                handleUserPubKeys(receivedFrame);
+                break;
 
-        case proto::PayloadType::kChatGroupCurrentSymKeyRequest:
-            handleCurrentSymKeyRequest(receivedFrame);
-            break;
+            case proto::PayloadType::kChatGroupCurrentSymKeyRequest:
+                handleCurrentSymKeyRequest(receivedFrame);
+                break;
 
-        case proto::PayloadType::kChatGroupCurrentSymKeyResponse:
-            handleCurrentSymKeyResponse(receivedFrame);
-            break;
+            case proto::PayloadType::kChatGroupCurrentSymKeyResponse:
+                handleCurrentSymKeyResponse(receivedFrame);
+                break;
 
-        case proto::PayloadType::kNewSymKeyRequest:
-            handleNewSymKeyRequest(receivedFrame);
-            break;
+            case proto::PayloadType::kNewSymKeyRequest:
+                handleNewSymKeyRequest(receivedFrame);
+                break;
 
-        default:
-            {
-                const std::string invalidFrameStrHex = //
-                    utils::formatCharactersHex(data, dataLen);
-                ui::print("[client] received incorrect frame from %s - drop, type: %d [ %s ]",
-                          receivedFrame.source().c_str(),
-                          receivedFrame.payloadtype(),
-                          invalidFrameStrHex.c_str());
-            }
-            break;
+            default:
+                {
+                    const std::string invalidFrameStrHex = //
+                        utils::formatCharactersHex(data, dataLen);
+                    ui::print("[client] received incorrect frame from %s - drop, type: %d [ %s ]",
+                              receivedFrame.source().c_str(),
+                              receivedFrame.payloadtype(),
+                              invalidFrameStrHex.c_str());
+                }
+                break;
+        }
+
+        bytesLeft -= receivedFrame.ByteSizeLong();
+        dataOffset += receivedFrame.ByteSizeLong();
     }
-    //    }
 }
 
 void SecchatClient::userConnect()
@@ -245,7 +251,7 @@ void SecchatClient::handleConnectAck(proto::Frame &frame)
     memcpy(mKeyServerAsymSign.mKeyPub, pay.pubsignkey().data(), crypto::kPubKeySignatureByteCount);
     memcpy(mKeyServerAsym.mKeyPub, pay.pubencryptkey().data(), crypto::kPubKeyByteCount);
 
-    const std::string ackedUser{frame.source()};
+    const std::string ackedUser{frame.destination()};
     mWaitQueue.complete(utils::WaitEventType::kUserConnectAck, std::move(ackedUser));
 }
 
@@ -260,7 +266,7 @@ void SecchatClient::serverJoinRoom(const std::string &roomName)
     proto::Frame frame;
     frame.set_source(mMyUserName);
     frame.set_destination("server");
-    frame.set_payloadtype(proto::PayloadType::kMessageToRoom);
+    frame.set_payloadtype(proto::PayloadType::kChatRoomJoin);
     frame.set_payload(encrypted.data.get(), encrypted.dataSize);
 
     auto buffer = proto::serializeFrame(frame);
@@ -341,8 +347,8 @@ void SecchatClient::requestCurrentSymKey(const std::string &roomName)
 void SecchatClient::handleUserPubKeys(proto::Frame &frame)
 {
     auto source = frame.source();
-
     auto pay = frame.payload();
+
     auto decryptedPayOpt = crypto::decryptAndSignVerify(
         (uint8_t *)pay.data(), pay.size(), mKeyServerAsymSign, mKeyMyAsym);
     if (!decryptedPayOpt)
@@ -351,14 +357,16 @@ void SecchatClient::handleUserPubKeys(proto::Frame &frame)
         return;
     }
 
-    const uint8_t *const keysPlain = decryptedPayOpt->data.get();
+    proto::PayloadUserPubKeys payPubKeys = //
+        proto::deserializePayload<proto::PayloadUserPubKeys>(decryptedPayOpt->data.get(),
+                                                             decryptedPayOpt->dataSize);
 
     RemoteUserKeys remoteUserKeys;
     memcpy(remoteUserKeys.mSign.mKeyPub,
-           keysPlain, //
+           payPubKeys.pubsignkey().data(), //
            crypto::kPubKeySignatureByteCount);
     memcpy(remoteUserKeys.mEncrypt.mKeyPub, //
-           keysPlain + crypto::kPubKeySignatureByteCount,
+           payPubKeys.pubencryptkey().data(),
            crypto::kPubKeyByteCount);
 
     ui::print("[client] received asym keys from user %s", source.c_str());
@@ -403,8 +411,12 @@ void SecchatClient::handleCurrentSymKeyRequest(proto::Frame &frame)
         ui::print("[client] ##### SENDING SYM KEY [ %s ] #####", asymKeyHex.c_str());
 
         // encrypt with requesting user asym key
-        auto symKeyEncrypted = crypto::signAndEncrypt(
-            mKeyChatGroup.mKey, crypto::kSymKeyByteCount, mKeyMyAsymSign, remoteUserKeys.mEncrypt);
+        auto symKeyEncrypted =      //
+            crypto::signAndEncrypt( //
+                mKeyChatGroup.mKey,
+                crypto::kSymKeyByteCount,
+                mKeyMyAsymSign,
+                remoteUserKeys.mEncrypt);
 
         proto::PayloadChatGroupCurrentSymKeyRequestOrResponse payResp;
         payResp.set_roomname(req.roomname());
@@ -436,19 +448,11 @@ void SecchatClient::handleCurrentSymKeyResponse(proto::Frame &frame)
 
     auto remoteUserKeys = mRemoteUserKeys[source];
 
-    auto nonsigned = crypto::decryptAndSignVerify((uint8_t *)frame.payload().data(),
-                                                  frame.payload().size(),
-                                                  remoteUserKeys.mSign,
-                                                  mKeyMyAsym);
-    if (!nonsigned)
-    {
-        ui::print("[client] failed to verify signature from from user %s, drop", source.c_str());
-        return;
-    }
+    auto &pay = frame.payload();
 
     proto::PayloadChatGroupCurrentSymKeyRequestOrResponse resp =
         proto::deserializePayload<proto::PayloadChatGroupCurrentSymKeyRequestOrResponse>(
-            nonsigned->data.get(), nonsigned->dataSize);
+            pay.data(), pay.size());
 
     if (resp.has_key() == false)
     {
@@ -456,7 +460,21 @@ void SecchatClient::handleCurrentSymKeyResponse(proto::Frame &frame)
         return;
     }
 
-    memcpy(mKeyChatGroup.mKey, resp.key().data(), resp.key().size());
+    auto key = resp.key();
+
+    auto nonsigned =                  //
+        crypto::decryptAndSignVerify( //
+            key.data(),
+            key.size(),
+            remoteUserKeys.mSign,
+            mKeyMyAsym);
+    if (!nonsigned)
+    {
+        ui::print("[client] failed to verify signature from from user %s, drop", source.c_str());
+        return;
+    }
+
+    memcpy(mKeyChatGroup.mKey, nonsigned->data.get(), nonsigned->dataSize);
 
     const auto symKeyHex = utils::formatCharactersHex(mKeyChatGroup.mKey, 5);
     ui::print("[client] ##### RECEIVED SYM KEY [ %s ] from user %s room %s #####",
