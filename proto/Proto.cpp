@@ -154,11 +154,17 @@ void Proto::populatePayloadNewSymKeyRequest( //
 
     pay.type = PayloadType::kNewSymKeyRequest;
 
+    PayloadRequestCurrentSymKey newSymKey;
+    newSymKey.roomNameSize = roomName.size();
+    newSymKey.roomName = roomName;
+
+    auto serialized = serializeRequestCurrentSymKey(newSymKey);
+
     crypto::SignedData signedData = //
         crypto::sign(               //
             payloadSignKey,
-            (uint8_t *)roomName.c_str(),
-            roomName.size());
+            serialized.data.get(),
+            serialized.dataSize);
 
     crypto::EncryptedData encryptedData =      //
         crypto::asymEncrypt(payloadEncryptKey, //
@@ -440,10 +446,9 @@ Proto::PayloadJoinReqAck Proto::deserializeJoinReqAck( //
 utils::ByteArray Proto::serializeRequestCurrentSymKey(
     const Proto::PayloadRequestCurrentSymKey &payload)
 {
-    const uint32_t totalSize =    //
-        sizeof(uint32_t) +        //
-        payload.roomName.size() + //
-        crypto::kPubKeyByteCount;
+    const uint32_t totalSize = //
+        sizeof(uint32_t) +     //
+        payload.roomName.size();
 
     utils::ByteArray ba;
     ba.data = std::make_unique<uint8_t[]>(totalSize);

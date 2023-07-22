@@ -159,14 +159,19 @@ void SecchatClient::handlePacket( //
                 handleCurrentSymKeyResponse(framesIt);
                 break;
 
+            case Proto::PayloadType::kNewSymKeyRequest:
+                handleNewSymKeyRequest(framesIt);
+                break;
+
             default:
                 {
                     const std::string invalidFrameStrHex = //
                         utils::formatCharactersHex(data, dataLen);
                     Proto::Header &header = framesIt.getHeader();
                     const std::string source{header.source.get(), header.sourceSize};
-                    ui::print("[client] received incorrect frame from %s, drop: [%s]",
+                    ui::print("[client] received incorrect frame from %s - drop, type: %d [ %s ]",
                               source.c_str(),
+                              payload.type,
                               invalidFrameStrHex.c_str());
                 }
                 break;
@@ -501,4 +506,32 @@ void SecchatClient::handleMessageToRoom(Proto::Frame &frame)
         utils::formatChatMessage(roomName, userName, message);
 
     ui::print(formattedMessage.c_str());
+}
+
+void SecchatClient::handleNewSymKeyRequest(Proto::Frame &frame)
+{
+    const Proto::Header &header = frame.getHeader();
+    const Proto::Payload &payload = frame.getPayload();
+
+    const std::string source{header.source.get(), header.sourceSize};
+
+    auto decrypted = crypto::asymDecrypt( //
+        mKeyMyAsym,
+        payload.payload.get(),
+        payload.size);
+
+    auto nonsignedData = crypto::signedVerify( //
+        mKeyServerAsymSign,
+        decrypted.data.get(),
+        decrypted.dataSize);
+    if (!nonsignedData)
+    {
+        ui::print("[client] signature verification failed, source: %s", source.c_str());
+        return;
+    }
+
+    auto payNewKey =
+        Proto::deserializeRequestCurrentSymKey(nonsignedData->data.get(), nonsignedData->dataSize);
+
+    newSymKeyRequested(source, payNewKey.roomName);
 }

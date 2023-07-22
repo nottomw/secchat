@@ -224,7 +224,10 @@ void SecchatServer::handleNewUser( //
     auto replyFrameSer = Proto::serialize(replyFrame);
 
     const bool sendOk = mTransport.sendBlocking(replyFrameSer.get(), replyFrame.getSize(), session);
-    assert(sendOk);
+    if (sendOk == false)
+    {
+        utils::log("[server] FAILED to ACK connect from user %s", destination.c_str());
+    }
 }
 
 void SecchatServer::handleJoinChatRoom( //
@@ -309,8 +312,6 @@ void SecchatServer::handleJoinChatRoom( //
             // user just joined new room, send out his keys to all and all keys to him
             userJoinedPubKeysExchange(*userHandle, join.roomName);
         }
-
-        // TODO: broadcast the pubsign/pub keys to other users on room join
     }
 }
 
@@ -334,11 +335,10 @@ void SecchatServer::handleMessageToChatRoom( //
                userName.c_str(),
                msgStr.c_str());
 
-    // TODO: mRooms must be a map...
-    auto foundRoom = std::find(mRooms.begin(), mRooms.end(), roomName);
+    auto roomOpt = findRoomByName(roomName);
+    assert(roomOpt);
 
-    // if room not found probably have to drop session - something strange is happening
-    assert(foundRoom != mRooms.end());
+    Room *const foundRoom = *roomOpt;
 
     // send to all users in this chat room
     for (const auto &userInRoomId : foundRoom->mJoinedUsers)
@@ -355,7 +355,10 @@ void SecchatServer::handleMessageToChatRoom( //
         // TODO: should modify the "destination" in header here
 
         const bool sendOk = mTransport.sendBlocking(rawBuffer, frame.getSize(), userInRoomSession);
-        assert(sendOk);
+        if (sendOk == false)
+        {
+            utils::log("[server] failed to send message to user %s", user.mUserName.c_str());
+        }
     }
 }
 
@@ -414,43 +417,35 @@ void SecchatServer::handleChatGroupSymKeyRequest( //
             continue;
         }
 
+        utils::log("[server] request sym key for room %s from user %s, forwarding to %s", //
+                   roomName.c_str(),
+                   source.c_str(),
+                   joinedUser.mUserName.c_str());
+
+        const bool forwardSuccess = forwardSymKeyRequest(roomName, *userHandleSource, joinedUser);
+        if (!forwardSuccess)
+        {
+            // try again with another user
+            continue;
+        }
+
         requestDestinationUserId = &joinedUser; // found one
         break;
     }
-
-    utils::log("[server] request sym key for room %s from user %s", //
-               roomName.c_str(),
-               source.c_str());
 
     if (requestDestinationUserId == nullptr)
     {
         // looks like just joined user is the only one here,
         // the new sym key generation needs to requested from him
-        utils::log("[server] user %s is the only user in this room, drop request", source.c_str());
-        return;
-    }
-
-    Proto::Frame frameSymKeyRequest;
-    Proto::populateHeader(frameSymKeyRequest, source, requestDestinationUserId->mUserName);
-
-    Proto::populatePayloadCurrentSymKeyRequest( //
-        frameSymKeyRequest,
-        roomName,
-        mKeyMyAsymSign,
-        requestDestinationUserId->keyEncrypt);
-
-    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frameSymKeyRequest);
-    assert(buffer);
-
-    const bool sendOk =          //
-        mTransport.sendBlocking( //
-            buffer.get(),
-            frameSymKeyRequest.getSize(),
-            requestDestinationUserId->mSession);
-
-    if (sendOk == false)
-    {
-        utils::log("[server] sym key request - failed - user disconnected?...");
+        utils::log("[server] user %s is the only user in this room", source.c_str());
+        utils::log("[server] requesting user %s to generate new sym key", source.c_str());
+        const bool reqOk = requestNewSymKeyFromUser(roomName, *userHandleSource);
+        if (!reqOk)
+        {
+            utils::log(
+                "[server] new sym key generation request failed (sent to user %s), giving up...",
+                source.c_str());
+        }
     }
 }
 
@@ -744,7 +739,44 @@ void SecchatServer::sendUserKeysToUser( //
         serializedUserKeysFrame.get(),
         userKeysframe.getSize(),
         userHandleDestFound->mSession);
-    assert(sendOk);
+    if (sendOk == false)
+    {
+        utils::log("[server] failed to send pub keys of user %s to %s",
+                   userNameSrc.c_str(),
+                   userNameDest.c_str());
+    }
+}
+
+bool SecchatServer::forwardSymKeyRequest( //
+    const std::string &roomName,
+    SecchatServer::User &sourceUserHandle,
+    SecchatServer::User &destUserHandle)
+{
+    Proto::Frame frameSymKeyRequest;
+    Proto::populateHeader(frameSymKeyRequest, sourceUserHandle.mUserName, destUserHandle.mUserName);
+
+    Proto::populatePayloadCurrentSymKeyRequest( //
+        frameSymKeyRequest,
+        roomName,
+        mKeyMyAsymSign,
+        destUserHandle.keyEncrypt);
+
+    std::unique_ptr<uint8_t[]> buffer = Proto::serialize(frameSymKeyRequest);
+    assert(buffer);
+
+    const bool sendOk =          //
+        mTransport.sendBlocking( //
+            buffer.get(),
+            frameSymKeyRequest.getSize(),
+            destUserHandle.mSession);
+
+    if (sendOk == false)
+    {
+        utils::log("[server] sym key request - failed - user disconnected?...");
+        return false;
+    }
+
+    return true;
 }
 
 SecchatServer::User::User()

@@ -42,7 +42,7 @@ public:
         kChatRoomLeave,  // from user
 
         // TODO: requested user should get a prompt (yes/no) to confirm he wants to provide the keys
-        kChatGroupSymKeyRequest,  // from user, request asym key, sent to random N users (or chat
+        kChatGroupSymKeyRequest,  // from user, request sym key, sent to random N users (or chat
                                   // owner?)
         kUserPubKeys,             // from server, send other user pub key to requesting user
         kChatGroupSymKeyResponse, // from user, respond with asym key encrypted with requesting user

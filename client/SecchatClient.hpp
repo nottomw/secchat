@@ -63,6 +63,7 @@ private:
     void handleCurrentSymKeyRequest(Proto::Frame &frame);
     void handleCurrentSymKeyResponse(Proto::Frame &frame);
     void handleMessageToRoom(Proto::Frame &frame);
+    void handleNewSymKeyRequest(Proto::Frame &frame);
 
     void newSymKeyRequested(const std::string &source, const std::string &roomName);
 

@@ -113,4 +113,8 @@ private:
                             const std::string &userNameSrc,
                             const std::string &userNameDest,
                             const SecchatServer::User *const userHandleDest = nullptr);
+
+    bool forwardSymKeyRequest(const std::string &roomName,
+                              User &sourceUserHandle,
+                              User &destUserHandle);
 };
