@@ -111,13 +111,12 @@ std::optional<NonsignedData> signedVerify( //
     const uint8_t *const buffer,
     const uint32_t bufferSize);
 
-// TODO: implement
-EncryptedData signAndEncrypt(const utils::ByteArray &ba,
+EncryptedData signAndEncrypt(const uint8_t *const data,
+                             const uint32_t dataSize,
                              const KeyAsymSignature &sig,
                              const KeyAsym &encrypt);
 
-EncryptedData signAndEncrypt(const uint8_t *const data,
-                             const uint32_t dataSize,
+EncryptedData signAndEncrypt(const utils::ByteArray &ba,
                              const KeyAsymSignature &sig,
                              const KeyAsym &encrypt);
 
