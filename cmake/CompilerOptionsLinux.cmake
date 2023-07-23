@@ -1,16 +1,15 @@
 # Compiler options for Linux platform
 
 set(CMAKE_C_COMPILER gcc)
+set(CMAKE_CXX_COMPILER g++)
+set(CMAKE_CXX_STANDARD 17)
+
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
-
-set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-#    set(VERBOSE ON)
-
     set(SANITIZERS_FLAGS -fsanitize=address -fsanitize=undefined)
     #set(SANITIZERS_FLAGS) # use when running under valgrind
 
