@@ -14,7 +14,7 @@ SecchatClient::SecchatClient()
 {
     if (!crypto::init())
     {
-        ui::print("Crypto init failed");
+        ui::print("[client] crypto init failed");
         assert(false); // fatal error...
     }
 
@@ -230,8 +230,6 @@ void SecchatClient::handleConnectAck(proto::Frame &frame)
 {
     auto payBuf = frame.payload();
 
-    // TODO: handle isAck
-
     const crypto::DecryptedData payData =
         crypto::asymDecrypt(mKeyMyAsym, (uint8_t *)payBuf.data(), payBuf.size());
 
@@ -239,6 +237,12 @@ void SecchatClient::handleConnectAck(proto::Frame &frame)
         proto::deserializePayload<proto::PayloadUserConnectOrAck>( //
             payData.data.get(),
             payData.dataSize);
+
+    if (pay.has_isack() == false || pay.isack() == false)
+    {
+        ui::print("[client] connect ack failed - missing ack field");
+        return;
+    }
 
     const std::string signKeyHex =
         utils::formatCharactersHex((uint8_t *)pay.pubsignkey().data(), 5);
