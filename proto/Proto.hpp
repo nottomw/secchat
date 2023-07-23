@@ -29,17 +29,6 @@ utils::ByteArray serializePayload(const T &pay)
 }
 
 template <typename T>
-T deserializePayload(const utils::ByteArray &ba)
-{
-    T pay;
-
-    const bool ok = pay.ParseFromArray(ba, ba);
-    assert(ok);
-
-    return pay;
-}
-
-template <typename T>
 T deserializePayload(const uint8_t *const data, const uint32_t dataSize)
 {
     T pay;
@@ -51,14 +40,15 @@ T deserializePayload(const uint8_t *const data, const uint32_t dataSize)
 }
 
 template <typename T>
+T deserializePayload(const utils::ByteArray &ba)
+{
+    return deserializePayload<T>(ba, ba);
+}
+
+template <typename T>
 T deserializePayload(const char *const data, const uint32_t dataSize)
 {
-    T pay;
-
-    const bool ok = pay.ParseFromArray(data, dataSize);
-    assert(ok);
-
-    return pay;
+    return deserializePayload<T>((uint8_t *)data, dataSize);
 }
 
 }; // namespace proto
