@@ -53,18 +53,14 @@ KeySym keygenSym()
     return key;
 }
 
-KeySym derive(const KeySym &key,
-              const uint8_t *const context,
-              const uint32_t contextSize,
-              const uint8_t *const salt,
-              const uint32_t saltSize)
+KeySym derive( //
+    const KeySym &key,
+    const utils::ByteArray &context,
+    const utils::ByteArray & /*salt*/)
 {
     KeySym derivedKey;
 
     static_assert(kSymKeyByteCount == crypto_secretstream_xchacha20poly1305_KEYBYTES);
-
-    assert(salt[saltSize - 1] == '\0');
-    assert(context[contextSize - 1] == '\0');
 
     const uint32_t subkeyId = 0U;
     const int deriveOk =            //
@@ -72,7 +68,7 @@ KeySym derive(const KeySym &key,
             derivedKey.mKey,
             kSymKeyByteCount,
             subkeyId,
-            (char *)context,
+            context,
             key.mKey);
     assert(deriveOk == 0);
 
@@ -81,47 +77,32 @@ KeySym derive(const KeySym &key,
 
 utils::ByteArray symEncryptGetNonce()
 {
-    utils::ByteArray ba;
+    utils::ByteArray ba{crypto_secretbox_NONCEBYTES};
 
-    ba.data =                       //
-        std::unique_ptr<uint8_t[]>( //
-            new uint8_t[crypto_secretbox_NONCEBYTES]);
-    ba.dataSize = crypto_secretbox_NONCEBYTES;
-
-    randombytes_buf(ba.data.get(), crypto_secretbox_NONCEBYTES);
+    randombytes_buf(ba.ptr(), crypto_secretbox_NONCEBYTES);
 
     return ba;
 }
 
 EncryptedData symEncrypt( //
     const KeySym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
+    const utils::ByteArray &data,
     const utils::ByteArray &nonce)
 {
     EncryptedData res;
+    res.nonce = utils::ByteArray{crypto_secretbox_NONCEBYTES};
+    res.data = utils::ByteArray{crypto_secretbox_MACBYTES + data.size()};
 
-    res.nonce =                     //
-        std::unique_ptr<uint8_t[]>( //
-            new uint8_t[crypto_secretbox_NONCEBYTES]);
-    res.nonceSize = crypto_secretbox_NONCEBYTES;
-
-    // unnecessary copy?
-    memcpy(res.nonce.get(), nonce.data.get(), crypto_secretbox_NONCEBYTES);
-
-    res.data =                      //
-        std::unique_ptr<uint8_t[]>( //
-            new uint8_t[crypto_secretbox_MACBYTES + bufferSize]);
-    res.dataSize = crypto_secretbox_MACBYTES + bufferSize;
+    // maybe nonce could be std::moved instead of copied
+    memcpy(res.nonce.ptr(), nonce.ptr(), crypto_secretbox_NONCEBYTES);
 
     const int encryptionRes =  //
         crypto_secretbox_easy( //
-            res.data.get(),
-            buffer,
-            bufferSize,
-            res.nonce.get(),
+            res.data.ptr(),
+            data.ptr(),
+            data.size(),
+            res.nonce.ptr(),
             key.mKey);
-
     assert(encryptionRes == 0);
 
     return res;
@@ -129,26 +110,21 @@ EncryptedData symEncrypt( //
 
 std::optional<DecryptedData> symDecrypt( //
     const KeySym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
+    const utils::ByteArray &data,
     const utils::ByteArray &nonce)
 {
-    DecryptedData decryptedData;
 
-    assert(nonce.dataSize == crypto_secretbox_NONCEBYTES);
+    assert(nonce.size() == crypto_secretbox_NONCEBYTES);
 
-    const uint32_t plaintextSize = bufferSize - crypto_secretbox_MACBYTES;
+    const uint32_t plaintextSize = data.size() - crypto_secretbox_MACBYTES;
 
-    decryptedData.data =            //
-        std::unique_ptr<uint8_t[]>( //
-            new uint8_t[plaintextSize]);
-    decryptedData.dataSize = plaintextSize;
+    DecryptedData decryptedData{plaintextSize};
 
     const int openOk = crypto_secretbox_open_easy( //
-        decryptedData.data.get(),
-        buffer,
-        bufferSize,
-        nonce.data.get(),
+        decryptedData.ptr(),
+        data.ptr(),
+        data.size(),
+        nonce.ptr(),
         key.mKey);
     if (openOk != 0)
     {
@@ -160,71 +136,58 @@ std::optional<DecryptedData> symDecrypt( //
 
 EncryptedData asymEncrypt( //
     const KeyAsym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize)
+    const utils::ByteArray &data)
 {
-    const uint32_t encryptedDataSize = crypto_box_SEALBYTES + bufferSize;
+    const uint32_t encryptedDataSize = crypto_box_SEALBYTES + data.size();
 
-    EncryptedData data;
+    EncryptedData encryptedData;
+    encryptedData.data = utils::ByteArray{encryptedDataSize};
 
-    data.data = std::unique_ptr<uint8_t[]>( //
-        new uint8_t[encryptedDataSize]);
-    data.dataSize = encryptedDataSize;
-
-    const int encryptOk =                //
-        crypto_box_seal(data.data.get(), //
-                        buffer,
-                        bufferSize,
+    const int encryptOk =                         //
+        crypto_box_seal(encryptedData.data.ptr(), //
+                        data.ptr(),
+                        data.size(),
                         key.mKeyPub);
     assert(encryptOk == 0);
 
-    return data;
+    return encryptedData;
 }
 
 DecryptedData asymDecrypt( //
     const KeyAsym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize)
+    const utils::ByteArray &data)
 {
-    const uint32_t decryptedDataSize = bufferSize - crypto_box_SEALBYTES;
+    const uint32_t decryptedDataSize = data.size() - crypto_box_SEALBYTES;
 
-    DecryptedData data;
-    data.data = std::unique_ptr<uint8_t[]>( //
-        new uint8_t[decryptedDataSize]);
-    data.dataSize = decryptedDataSize;
+    DecryptedData decryptedData{decryptedDataSize};
 
     const int decryptOk =     //
         crypto_box_seal_open( //
-            data.data.get(),
-            buffer,
-            bufferSize,
+            decryptedData.ptr(),
+            data.ptr(),
+            data.size(),
             key.mKeyPub,
             key.mKeyPriv);
     assert(decryptOk == 0);
 
-    return data;
+    return decryptedData;
 }
 
 SignedData sign( //
     const KeyAsymSignature &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize)
+    const utils::ByteArray &data)
 {
-    SignedData signedData;
+    const uint32_t signedDataSize = data.size() + crypto_sign_BYTES;
 
-    const uint32_t signedDataSize = bufferSize + crypto_sign_BYTES;
-    signedData.dataSize = signedDataSize;
-
-    signedData.data = std::unique_ptr<uint8_t[]>( //
-        new uint8_t[signedDataSize]);
+    SignedData signedData{signedDataSize};
 
     unsigned long long signedMessageLen = 0U;
     const int signOk = //
         crypto_sign(   //
-            signedData.data.get(),
+            signedData.ptr(),
             &signedMessageLen,
-            buffer,
-            bufferSize,
+            data.ptr(),
+            data.size(),
             key.mKeyPriv);
     assert(signOk == 0);
     assert(signedMessageLen == (unsigned long long)signedDataSize);
@@ -234,29 +197,26 @@ SignedData sign( //
 
 std::optional<NonsignedData> signedVerify( //
     const KeyAsymSignature &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize)
+    const utils::ByteArray &data)
 {
-    NonsignedData nonsignedData;
-    nonsignedData.data = std::unique_ptr<uint8_t[]>( //
-        new uint8_t[bufferSize]);
-    nonsignedData.dataSize = 0U; // updated later
+    // reserve more size, the internal NonsignedData size() is updated later
+    auto buf = std::make_unique<uint8_t[]>(data.size());
 
     unsigned long long nonsignedDataSize = 0U;
     const int signatureOk = //
         crypto_sign_open(   //
-            nonsignedData.data.get(),
+            buf.get(),
             &nonsignedDataSize,
-            buffer,
-            bufferSize,
+            data.ptr(),
+            data.size(),
             key.mKeyPub);
     if (signatureOk != 0)
     {
-        // verification failed
+        // signature verification failed
         return std::nullopt;
     }
 
-    nonsignedData.dataSize = nonsignedDataSize;
+    NonsignedData nonsignedData{std::move(buf), (uint32_t)nonsignedDataSize};
 
     return nonsignedData;
 }
@@ -272,29 +232,21 @@ KeyAsym &KeyAsym::operator=(const KeyAsym &k)
     return *this;
 }
 
+KeyAsym::KeyAsym(KeyAsym &&k)
+{
+    copy(k);
+}
+
+KeyAsym &KeyAsym::operator=(KeyAsym &&k)
+{
+    copy(k);
+    return *this;
+}
+
 void KeyAsym::copy(const KeyAsym &k)
 {
     memcpy(mKeyPub, k.mKeyPub, kPubKeyByteCount);
     memcpy(mKeyPriv, k.mKeyPriv, kPrivKeyByteCount);
-}
-
-EncryptedData signAndEncrypt(const uint8_t *const data,
-                             const uint32_t dataSize,
-                             const KeyAsymSignature &sig,
-                             const KeyAsym &encrypt)
-{
-    crypto::SignedData signedData = //
-        crypto::sign(               //
-            sig,
-            data,
-            dataSize);
-
-    crypto::EncryptedData encryptedData = //
-        crypto::asymEncrypt(encrypt,      //
-                            signedData.data.get(),
-                            signedData.dataSize);
-
-    return encryptedData;
 }
 
 EncryptedData signAndEncrypt( //
@@ -302,34 +254,21 @@ EncryptedData signAndEncrypt( //
     const KeyAsymSignature &sig,
     const KeyAsym &encrypt)
 {
-    return signAndEncrypt(ba.ptr(), ba.size(), sig, encrypt);
+    crypto::SignedData signedData = crypto::sign(sig, ba);
+    crypto::EncryptedData encryptedData = crypto::asymEncrypt(encrypt, signedData);
+
+    return encryptedData;
 }
 
 std::optional<NonsignedData> decryptAndSignVerify( //
-    const uint8_t *const data,
-    const uint32_t dataSize,
+    const utils::ByteArray &data,
     const KeyAsymSignature &sig,
     const KeyAsym &encrypt)
 {
-    auto decrypted = crypto::asymDecrypt( //
-        encrypt,
-        data,
-        dataSize);
-
-    auto nonsignedData = crypto::signedVerify( //
-        sig,
-        decrypted.data.get(),
-        decrypted.dataSize);
+    auto decrypted = crypto::asymDecrypt(encrypt, data);
+    auto nonsignedData = crypto::signedVerify(sig, decrypted);
 
     return nonsignedData;
-}
-
-std::optional<NonsignedData> decryptAndSignVerify(const char *const data,
-                                                  const uint32_t dataSize,
-                                                  const KeyAsymSignature &sig,
-                                                  const KeyAsym &encrypt)
-{
-    return decryptAndSignVerify((uint8_t *)data, dataSize, sig, encrypt);
 }
 
 } // namespace crypto

@@ -56,21 +56,6 @@ std::string utils::formatChatMessage( //
     return retStr;
 }
 
-utils::ByteArray::ByteArray(const uint32_t size)
-    : data{std::make_unique<uint8_t[]>(size)}
-    , dataSize{size}
-{
-}
-
-utils::ByteArray::ByteArray( //
-    const uint8_t *const newData,
-    const uint32_t newSize)
-    : data{std::make_unique<uint8_t[]>(newSize)}
-    , dataSize{newSize}
-{
-    memcpy(data.get(), newData, newSize);
-}
-
 std::string utils::formatCharacters(const char *const buffer, const uint32_t bufferSize)
 {
     return formatCharacters((uint8_t *)buffer, bufferSize);

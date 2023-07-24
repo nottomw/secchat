@@ -21,6 +21,10 @@ struct KeyAsym
     KeyAsym() = default;
     KeyAsym(const KeyAsym &k);
     KeyAsym &operator=(const KeyAsym &k);
+    KeyAsym(KeyAsym &&k);
+    KeyAsym &operator=(KeyAsym &&k);
+
+    ~KeyAsym() = default;
 
     uint8_t mKeyPub[kPubKeyByteCount];
     uint8_t mKeyPriv[kPrivKeyByteCount];
@@ -42,24 +46,13 @@ struct KeySym
 
 struct EncryptedData
 {
-    // TODO: should be byte array
-    std::unique_ptr<uint8_t[]> data;
-    uint32_t dataSize;
-
-    // not used in asymmetric encryption
-    std::unique_ptr<uint8_t[]> nonce;
-    uint32_t nonceSize;
+    utils::ByteArray data;
+    utils::ByteArray nonce; // not used in asymmetric encryption
 };
 
-struct DecryptedData
-{
-    std::unique_ptr<uint8_t[]> data;
-    uint32_t dataSize;
-};
-
-// ...good enough?
-using SignedData = DecryptedData;
-using NonsignedData = DecryptedData; // sketchy
+using DecryptedData = utils::ByteArray;
+using SignedData = utils::ByteArray;
+using NonsignedData = utils::ByteArray; // strange name
 
 bool init();
 
@@ -71,63 +64,47 @@ KeyAsymSignature keygenAsymSign();
 
 KeySym keygenSym();
 
-KeySym derive(const KeySym &key,
-              const uint8_t *const context,
-              const uint32_t contextSize,
-              const uint8_t *const salt,
-              const uint32_t saltSize);
+KeySym derive( //
+    const KeySym &key,
+    const utils::ByteArray &context,
+    const utils::ByteArray &salt);
 
 utils::ByteArray symEncryptGetNonce();
 
 EncryptedData symEncrypt( //
     const KeySym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
+    const utils::ByteArray &data,
     const utils::ByteArray &nonce);
 
 std::optional<DecryptedData> symDecrypt( //
     const KeySym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize,
+    const utils::ByteArray &data,
     const utils::ByteArray &nonce);
 
 EncryptedData asymEncrypt( //
     const KeyAsym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize);
+    const utils::ByteArray &data);
 
 DecryptedData asymDecrypt( //
     const KeyAsym &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize);
+    const utils::ByteArray &data);
 
 SignedData sign( //
     const KeyAsymSignature &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize);
+    const utils::ByteArray &data);
 
 std::optional<NonsignedData> signedVerify( //
     const KeyAsymSignature &key,
-    const uint8_t *const buffer,
-    const uint32_t bufferSize);
+    const utils::ByteArray &data);
 
-EncryptedData signAndEncrypt(const uint8_t *const data,
-                             const uint32_t dataSize,
-                             const KeyAsymSignature &sig,
-                             const KeyAsym &encrypt);
+EncryptedData signAndEncrypt( //
+    const utils::ByteArray &ba,
+    const KeyAsymSignature &sig,
+    const KeyAsym &encrypt);
 
-EncryptedData signAndEncrypt(const utils::ByteArray &ba,
-                             const KeyAsymSignature &sig,
-                             const KeyAsym &encrypt);
-
-std::optional<NonsignedData> decryptAndSignVerify(const uint8_t *const data,
-                                                  const uint32_t dataSize,
-                                                  const KeyAsymSignature &sig,
-                                                  const KeyAsym &encrypt);
-
-std::optional<NonsignedData> decryptAndSignVerify(const char *const data,
-                                                  const uint32_t dataSize,
-                                                  const KeyAsymSignature &sig,
-                                                  const KeyAsym &encrypt);
+std::optional<NonsignedData> decryptAndSignVerify( //
+    const utils::ByteArray &data,
+    const KeyAsymSignature &sig,
+    const KeyAsym &encrypt);
 
 } // namespace crypto

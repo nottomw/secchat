@@ -117,21 +117,16 @@ bool SecchatClient::sendMessage( //
 
     auto nonceBa = crypto::symEncryptGetNonce();
 
-    crypto::SignedData signedData = //
-        crypto::sign(               //
-            mKeyMyAsymSign,
-            (uint8_t *)message.c_str(),
-            message.size());
+    crypto::SignedData signedData = crypto::sign( //
+        mKeyMyAsymSign,
+        utils::ByteArray{message.c_str(), message.size(), utils::ByteArray::Mode::kNoCopy});
 
     crypto::EncryptedData encryptedData = //
-        crypto::symEncrypt(mKeyChatGroup, //
-                           signedData.data.get(),
-                           signedData.dataSize,
-                           nonceBa);
+        crypto::symEncrypt(mKeyChatGroup, signedData, nonceBa);
 
     proto::PayloadMessage pay;
     pay.set_nonce(nonceBa.ptr(), nonceBa.size());
-    pay.set_msg(encryptedData.data.get(), encryptedData.dataSize);
+    pay.set_msg(encryptedData.data.ptr(), encryptedData.data.size());
 
     const auto serializedPay = proto::serializePayload(pay);
 
@@ -228,15 +223,16 @@ void SecchatClient::userConnect()
 
 void SecchatClient::handleConnectAck(proto::Frame &frame)
 {
-    auto payBuf = frame.payload();
+    const auto payBuf = frame.payload();
 
-    const crypto::DecryptedData payData =
-        crypto::asymDecrypt(mKeyMyAsym, (uint8_t *)payBuf.data(), payBuf.size());
+    const crypto::DecryptedData payData = crypto::asymDecrypt(
+        mKeyMyAsym,
+        utils::ByteArray{payBuf.data(), payBuf.size(), utils::ByteArray::Mode::kNoCopy});
 
     proto::PayloadUserConnectOrAck pay =                           //
         proto::deserializePayload<proto::PayloadUserConnectOrAck>( //
-            payData.data.get(),
-            payData.dataSize);
+            payData.ptr(),
+            payData.size());
 
     if (pay.has_isack() == false || pay.isack() == false)
     {
@@ -271,7 +267,7 @@ void SecchatClient::serverJoinRoom(const std::string &roomName)
     frame.set_source(mMyUserName);
     frame.set_destination("server");
     frame.set_payloadtype(proto::PayloadType::kChatRoomJoin);
-    frame.set_payload(encrypted.data.get(), encrypted.dataSize);
+    frame.set_payload(encrypted.data.ptr(), encrypted.data.size());
 
     auto buffer = proto::serializeFrame(frame);
 
@@ -280,10 +276,12 @@ void SecchatClient::serverJoinRoom(const std::string &roomName)
 
 void SecchatClient::handleChatRoomJoined(proto::Frame &frame)
 {
-    auto pay = frame.payload();
+    const auto pay = frame.payload();
 
     auto nonsignedData = crypto::decryptAndSignVerify(
-        (uint8_t *)pay.data(), pay.size(), mKeyServerAsymSign, mKeyMyAsym);
+        utils::ByteArray{pay.data(), pay.size(), utils::ByteArray::Mode::kNoCopy},
+        mKeyServerAsymSign,
+        mKeyMyAsym);
     if (!nonsignedData)
     {
         ui::print("[client] signature verification failed, source: %s", frame.source().c_str());
@@ -291,8 +289,8 @@ void SecchatClient::handleChatRoomJoined(proto::Frame &frame)
     }
 
     proto::PayloadJoinRequestOrAck reqAck = //
-        proto::deserializePayload<proto::PayloadJoinRequestOrAck>(nonsignedData->data.get(),
-                                                                  nonsignedData->dataSize);
+        proto::deserializePayload<proto::PayloadJoinRequestOrAck>(nonsignedData->ptr(),
+                                                                  nonsignedData->size());
 
     mJoinedRooms.push_back(reqAck.roomname());
 
@@ -341,7 +339,7 @@ void SecchatClient::requestCurrentSymKey(const std::string &roomName)
     frame.set_source(mMyUserName);
     frame.set_destination("server");
     frame.set_payloadtype(proto::PayloadType::kChatGroupCurrentSymKeyRequest);
-    frame.set_payload(encrypted.data.get(), encrypted.dataSize);
+    frame.set_payload(encrypted.data.ptr(), encrypted.data.size());
 
     auto ser = proto::serializeFrame(frame);
 
@@ -350,20 +348,23 @@ void SecchatClient::requestCurrentSymKey(const std::string &roomName)
 
 void SecchatClient::handleUserPubKeys(proto::Frame &frame)
 {
-    auto source = frame.source();
-    auto pay = frame.payload();
+    const auto source = frame.source();
+    const auto pay = frame.payload();
 
     auto decryptedPayOpt = crypto::decryptAndSignVerify(
-        (uint8_t *)pay.data(), pay.size(), mKeyServerAsymSign, mKeyMyAsym);
+        utils::ByteArray{pay.data(), pay.size(), utils::ByteArray::Mode::kNoCopy},
+        mKeyServerAsymSign,
+        mKeyMyAsym);
     if (!decryptedPayOpt)
     {
         ui::print("[client] failed to verify signature of server (%s), abort", source.c_str());
         return;
     }
 
-    proto::PayloadUserPubKeys payPubKeys = //
-        proto::deserializePayload<proto::PayloadUserPubKeys>(decryptedPayOpt->data.get(),
-                                                             decryptedPayOpt->dataSize);
+    proto::PayloadUserPubKeys payPubKeys =                    //
+        proto::deserializePayload<proto::PayloadUserPubKeys>( //
+            decryptedPayOpt->ptr(),
+            decryptedPayOpt->size());
 
     RemoteUserKeys remoteUserKeys;
     memcpy(remoteUserKeys.mSign.mKeyPub,
@@ -387,12 +388,13 @@ void SecchatClient::handleCurrentSymKeyRequest(proto::Frame &frame)
         return;
     }
 
-    auto remoteUserKeys = mRemoteUserKeys[source];
-
-    auto pay = frame.payload();
+    const auto remoteUserKeys = mRemoteUserKeys[source];
+    const auto pay = frame.payload();
 
     auto nonsigned = crypto::decryptAndSignVerify(
-        (uint8_t *)pay.data(), pay.size(), mKeyServerAsymSign, mKeyMyAsym);
+        utils::ByteArray{pay.data(), pay.size(), utils::ByteArray::Mode::kNoCopy},
+        mKeyServerAsymSign,
+        mKeyMyAsym);
     if (!nonsigned)
     {
         ui::print("[client] failed to verify server's signature, drop");
@@ -401,7 +403,7 @@ void SecchatClient::handleCurrentSymKeyRequest(proto::Frame &frame)
 
     proto::PayloadChatGroupCurrentSymKeyRequestOrResponse req =
         proto::deserializePayload<proto::PayloadChatGroupCurrentSymKeyRequestOrResponse>(
-            nonsigned->data.get(), nonsigned->dataSize);
+            nonsigned->ptr(), nonsigned->size());
 
     ui::print("[client] received sym key request from user %s for room %s", //
               source.c_str(),
@@ -415,16 +417,17 @@ void SecchatClient::handleCurrentSymKeyRequest(proto::Frame &frame)
         ui::print("[client] ##### SENDING SYM KEY [ %s ] #####", asymKeyHex.c_str());
 
         // encrypt with requesting user asym key
-        auto symKeyEncrypted =      //
-            crypto::signAndEncrypt( //
-                mKeyChatGroup.mKey,
-                crypto::kSymKeyByteCount,
+        auto symKeyEncrypted =                       //
+            crypto::signAndEncrypt(                  //
+                utils::ByteArray{mKeyChatGroup.mKey, //
+                                 crypto::kSymKeyByteCount,
+                                 utils::ByteArray::Mode::kNoCopy},
                 mKeyMyAsymSign,
                 remoteUserKeys.mEncrypt);
 
         proto::PayloadChatGroupCurrentSymKeyRequestOrResponse payResp;
         payResp.set_roomname(req.roomname());
-        payResp.set_key(symKeyEncrypted.data.get(), symKeyEncrypted.dataSize);
+        payResp.set_key(symKeyEncrypted.data.ptr(), symKeyEncrypted.data.size());
 
         auto paySerialized = proto::serializePayload(payResp);
 
@@ -464,12 +467,11 @@ void SecchatClient::handleCurrentSymKeyResponse(proto::Frame &frame)
         return;
     }
 
-    auto key = resp.key();
+    const auto key = resp.key();
 
     auto nonsigned =                  //
         crypto::decryptAndSignVerify( //
-            key.data(),
-            key.size(),
+            utils::ByteArray{key.data(), key.size(), utils::ByteArray::Mode::kNoCopy},
             remoteUserKeys.mSign,
             mKeyMyAsym);
     if (!nonsigned)
@@ -478,7 +480,7 @@ void SecchatClient::handleCurrentSymKeyResponse(proto::Frame &frame)
         return;
     }
 
-    memcpy(mKeyChatGroup.mKey, nonsigned->data.get(), nonsigned->dataSize);
+    memcpy(mKeyChatGroup.mKey, nonsigned->ptr(), nonsigned->size());
 
     const auto symKeyHex = utils::formatCharactersHex(mKeyChatGroup.mKey, 5);
     ui::print("[client] ##### RECEIVED SYM KEY [ %s ] from user %s room %s #####",
@@ -511,12 +513,11 @@ void SecchatClient::handleMessageToRoom(proto::Frame &frame)
 
     utils::ByteArray nonce{(uint8_t *)payMsg.nonce().data(), (uint32_t)payMsg.nonce().size()};
 
-    auto decrypted = crypto::symDecrypt( //
+    auto decryptedOpt = crypto::symDecrypt( //
         mKeyChatGroup,
-        (uint8_t *)payMsg.msg().data(),
-        payMsg.msg().size(),
+        utils::ByteArray{payMsg.msg().data(), payMsg.msg().size(), utils::ByteArray::Mode::kNoCopy},
         nonce);
-    if (!decrypted)
+    if (!decryptedOpt)
     {
         ui::print("[client] message decrypt failed with sym key");
         return;
@@ -534,15 +535,14 @@ void SecchatClient::handleMessageToRoom(proto::Frame &frame)
 
     auto nonsigned = crypto::signedVerify( //
         remoteUserKeys.mSign,
-        decrypted->data.get(),
-        decrypted->dataSize);
+        *decryptedOpt);
     if (!nonsigned)
     {
         ui::print("[client] user %s signature verification failed, drop", userName.c_str());
         return;
     }
 
-    std::string message{(char *)nonsigned->data.get(), nonsigned->dataSize};
+    std::string message{(char *)nonsigned->ptr(), nonsigned->size()};
 
     const std::string formattedMessage = //
         utils::formatChatMessage(roomName, userName, message);
@@ -552,11 +552,13 @@ void SecchatClient::handleMessageToRoom(proto::Frame &frame)
 
 void SecchatClient::handleNewSymKeyRequest(proto::Frame &frame)
 {
-    auto source = frame.source();
-    auto pay = frame.payload();
+    const auto source = frame.source();
+    const auto pay = frame.payload();
 
     auto nonsignedData = crypto::decryptAndSignVerify(
-        (uint8_t *)pay.data(), pay.size(), mKeyServerAsymSign, mKeyMyAsym);
+        utils::ByteArray{pay.data(), pay.size(), utils::ByteArray::Mode::kNoCopy},
+        mKeyServerAsymSign,
+        mKeyMyAsym);
     if (!nonsignedData)
     {
         ui::print("[client] signature verification failed, source: %s", source.c_str());
@@ -564,8 +566,8 @@ void SecchatClient::handleNewSymKeyRequest(proto::Frame &frame)
     }
 
     proto::PayloadNewSymKeyRequest payNewKey =
-        proto::deserializePayload<proto::PayloadNewSymKeyRequest>(nonsignedData->data.get(),
-                                                                  nonsignedData->dataSize);
+        proto::deserializePayload<proto::PayloadNewSymKeyRequest>(nonsignedData->ptr(),
+                                                                  nonsignedData->size());
 
     newSymKeyRequested(source, payNewKey.roomname());
 }

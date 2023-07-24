@@ -3,6 +3,7 @@
 add_library(utils
     Utils.cpp
     WaitQueue.cpp
+    ByteArray.cpp
 )
 
 target_include_directories(utils
