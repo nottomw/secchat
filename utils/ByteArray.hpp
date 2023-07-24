@@ -6,8 +6,6 @@
 
 namespace utils{
 
-// TODO: use the bytearray everywhere when possible instead of uint8+size...
-
 // Poor man's byte array for now...
 // Similar to std::span<>.
 class ByteArray
