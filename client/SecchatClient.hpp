@@ -8,6 +8,9 @@
 #include <condition_variable>
 #include <map>
 
+// TODO: double ratchett
+// TODO: remove the server interactions as much as possible
+
 class SecchatClient
 {
 public:

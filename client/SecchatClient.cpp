@@ -7,6 +7,8 @@
 #include <iostream>
 #include <thread>
 
+// TODO: peer-2-peer whenever possible?
+
 SecchatClient::SecchatClient()
     : mTransport{}
     , mReaderShouldRun{true}

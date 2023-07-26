@@ -5,6 +5,10 @@
 
 uint32_t SecchatServer::User::mGlobalUserId = 0U;
 
+// TODO: user left, user joined messages
+// TODO: keys persistency - client should ask user to generate new keys, server should save them
+// TODO: user & room persistency - registration, creation, ...
+
 SecchatServer::SecchatServer()
     : mReaderShouldRun{true}
 {
