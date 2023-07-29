@@ -3,9 +3,10 @@
 namespace utils
 {
 
-std::future<ByteArray> WaitQueue::waitFor( //
+std::optional<utils::ByteArray> WaitQueue::waitFor( //
     const WaitEventType type,
-    std::string &&matchStr)
+    std::string &&matchStr,
+    const uint32_t timeoutSeconds)
 {
     std::promise<ByteArray> prom;
     std::future<ByteArray> fut = prom.get_future();
@@ -20,7 +21,13 @@ std::future<ByteArray> WaitQueue::waitFor( //
         mWaitObjects.push_back(std::move(obj));
     }
 
-    return fut;
+    auto status = fut.wait_for(std::chrono::seconds(timeoutSeconds));
+    if (status != std::future_status::ready)
+    {
+        return std::nullopt;
+    }
+
+    return fut.get();
 }
 
 void WaitQueue::complete( //

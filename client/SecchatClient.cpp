@@ -74,12 +74,11 @@ bool SecchatClient::startChat(const std::string &userName)
     userConnect();
 
     std::string userNameCopy = userName;
-    auto fut = mWaitQueue.waitFor( //
+    const auto waitRes = mWaitQueue.waitFor( //
         utils::WaitEventType::kUserConnectAck,
-        std::move(userNameCopy));
-
-    auto status = fut.wait_for(std::chrono::seconds(2));
-    if (status != std::future_status::ready)
+        std::move(userNameCopy),
+        2);
+    if (!waitRes)
     {
         return false;
     }
@@ -94,9 +93,12 @@ bool SecchatClient::joinRoom(const std::string &roomName)
     serverJoinRoom(roomName);
 
     std::string roomNameCopy = roomName;
-    auto fut = mWaitQueue.waitFor(utils::WaitEventType::kUserJoined, std::move(roomNameCopy));
-    auto status = fut.wait_for(std::chrono::seconds(2));
-    if (status != std::future_status::ready)
+    const auto waitRes =    //
+        mWaitQueue.waitFor( //
+            utils::WaitEventType::kUserJoined,
+            std::move(roomNameCopy),
+            2);
+    if (!waitRes)
     {
         return false;
     }

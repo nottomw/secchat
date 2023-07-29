@@ -2,8 +2,10 @@
 
 #include "Utils.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <future>
+#include <optional>
 #include <vector>
 
 namespace utils
@@ -20,10 +22,11 @@ enum class WaitEventType
 class WaitQueue
 {
 public:
-    // TODO: just wait, do not expose std::future -> add timeout param
-    std::future<utils::ByteArray> waitFor( //
+    // No data in optional<> means timeout
+    std::optional<utils::ByteArray> waitFor( //
         const WaitEventType type,
-        std::string &&matchStr);
+        std::string &&matchStr,
+        const uint32_t timeoutSeconds);
 
     void complete( //
         const WaitEventType type,
