@@ -21,8 +21,8 @@ endif()
 
 add_compile_options(-Wall -Wextra -Werror -pedantic ${COMPILER_FLAGS})
 
-# TODO: fix -Werror=format-security ASAP
-message(WARNING "ADDED -Werror=format-security BECAUSE OF Utils::log - FIX REQUIRED FIX REQUIRED FIX REQUIRED FIX REQUIRED")
+# kinda dangerous but needs to be here until utils::log uses
+# format string
 add_compile_options(-Wno-format-security)
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
