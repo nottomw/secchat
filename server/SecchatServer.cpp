@@ -6,7 +6,8 @@
 uint32_t SecchatServer::User::mGlobalUserId = 0U;
 
 // TODO: user left, user joined messages
-// TODO: keys persistency - client should ask user to generate new keys, server should save them
+// TODO: keys persistency - client should ask user to generate new keys (some sort of prompt),
+// server should save them
 // TODO: user & room persistency - registration, creation, ...
 
 SecchatServer::SecchatServer()
@@ -186,6 +187,8 @@ void SecchatServer::handleNewUser( //
     const auto existingUser = verifyUserExists(newUserName);
     if (existingUser)
     {
+        // For now an "existing user" means just that the user was not removed yet when
+        // the session got invalidated. When persistency added need to do additional verifies:
         // TODO: If this is a existing user, verify the pubsign/pub keys match!!!
         // TODO: if this is a existing user, and pubkeys OK, reply with connect ack, otherwise drop
 
