@@ -25,7 +25,7 @@ public:
     // No data in optional<> means timeout
     std::optional<utils::ByteArray> waitFor( //
         const WaitEventType type,
-        std::string &&matchStr,
+        const std::string &matchStr,
         const uint32_t timeoutSeconds);
 
     void complete( //

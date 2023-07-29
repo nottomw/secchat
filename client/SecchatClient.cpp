@@ -73,10 +73,9 @@ bool SecchatClient::startChat(const std::string &userName)
 
     userConnect();
 
-    std::string userNameCopy = userName;
     const auto waitRes = mWaitQueue.waitFor( //
         utils::WaitEventType::kUserConnectAck,
-        std::move(userNameCopy),
+        userName,
         2);
     if (!waitRes)
     {
@@ -92,11 +91,10 @@ bool SecchatClient::joinRoom(const std::string &roomName)
 
     serverJoinRoom(roomName);
 
-    std::string roomNameCopy = roomName;
     const auto waitRes =    //
         mWaitQueue.waitFor( //
             utils::WaitEventType::kUserJoined,
-            std::move(roomNameCopy),
+            roomName,
             2);
     if (!waitRes)
     {

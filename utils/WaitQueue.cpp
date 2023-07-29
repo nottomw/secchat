@@ -5,7 +5,7 @@ namespace utils
 
 std::optional<utils::ByteArray> WaitQueue::waitFor( //
     const WaitEventType type,
-    std::string &&matchStr,
+    const std::string &matchStr,
     const uint32_t timeoutSeconds)
 {
     std::promise<ByteArray> prom;
@@ -14,7 +14,7 @@ std::optional<utils::ByteArray> WaitQueue::waitFor( //
     WaitObject obj;
     obj.mEventType = type;
     obj.mPromise = std::move(prom);
-    obj.mMatchStr = std::move(matchStr);
+    obj.mMatchStr = matchStr;
 
     {
         std::unique_lock<std::mutex> lk{mWaitObjectsMutex};
