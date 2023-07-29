@@ -36,7 +36,10 @@ conan_cmake_install(PATH_OR_REFERENCE .
                     REMOTE conancenter
                     SETTINGS ${settings})
 
+if ("${SECCHAT_MODE}" STREQUAL "ncurses")
+    find_package(Curses REQUIRED)
+endif()
+
 find_package(asio REQUIRED)
-find_package(Curses REQUIRED)
 find_package(libsodium REQUIRED)
 find_package(Protobuf REQUIRED)
