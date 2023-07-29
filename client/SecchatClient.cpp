@@ -238,7 +238,7 @@ void SecchatClient::handleConnectAck(proto::Frame &frame)
 
     if (pay.has_isack() == false || pay.isack() == false)
     {
-        ui::print("[client] connect ack failed - missing ack field");
+        ui::print("[client] connect ack failed - missing ack field or not acked");
         return;
     }
 

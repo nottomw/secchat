@@ -20,6 +20,7 @@ enum class WaitEventType
 class WaitQueue
 {
 public:
+    // TODO: just wait, do not expose std::future -> add timeout param
     std::future<utils::ByteArray> waitFor( //
         const WaitEventType type,
         std::string &&matchStr);
