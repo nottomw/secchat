@@ -34,7 +34,7 @@ void log(const char *const fmt, Ts... params)
     printf("\n"); // hack to add new line
     fflush(stdout);
 #endif
-    // TODO: log to file
+    // maybe could log to a file too
 }
 
 // For now placed here due to lack of better place, should
