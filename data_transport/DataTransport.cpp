@@ -14,7 +14,6 @@ DataTransport::DataTransport()
     , mIoContext{}
     , mAcceptor{}
     , mResolver{}
-    , mSessionsMutex{}
     , mSessions{}
     , mInvalidatedSessionCollectorShouldRun{true}
     , mInvalidatedSessionsCollectorThread{&DataTransport::invalidatedSessionsCollect, this}
@@ -76,10 +75,11 @@ void DataTransport::connect(const std::string &ipAddr, const uint16_t port)
     auto session = std::make_shared<Session>(std::move(sock));
     session->start();
 
-    {
-        std::lock_guard<std::mutex> l{mSessionsMutex};
-        mSessions.push_back(std::move(session));
-    }
+    mSessions.access(                 //
+        [&](SessionsVector &sessions) //
+        {                             //
+            sessions.push_back(std::move(session));
+        });
 
     mIoContextThread = std::thread{[this] { mIoContext.run(); }};
 }
@@ -88,57 +88,59 @@ bool DataTransport::sendBlocking(const uint8_t *const buffer, const uint32_t buf
 {
     // sending to all session sockets here
 
-    {
-        // pretty big lock...
-        std::lock_guard<std::mutex> lk{mSessionsMutex};
+    // pretty big lock...
 
-        for (auto &it : mSessions)
-        {
-            asio::error_code err;
+    mSessions.access(                 //
+        [&](SessionsVector &sessions) //
+        {                             //
+            for (auto &it : sessions)
+            {
+                asio::error_code err;
 
-            auto &sock = it->getSocket();
-            auto buf = asio::buffer(buffer, bufferLen);
-            size_t wrote = 0;
+                auto &sock = it->getSocket();
+                auto buf = asio::buffer(buffer, bufferLen);
+                size_t wrote = 0;
 
-            try
-            {
-                wrote = asio::write(sock, buf, err);
-            }
-            catch (...)
-            {
-                // got some error, probably peer disconnected already...
-                it->invalidate();
-                continue;
-            }
-
-            if (err == asio::error::eof)
-            {
-                it->invalidate();
-                continue;
-            }
-            else if (err)
-            {
-                utils::log("[transport] WRITE ERROR: %s, %d to session: #%d", //
-                           err.message().c_str(),
-                           err.value(),
-                           it->getId());
-                it->invalidate();
-                continue;
-            }
-            else
-            {
-                // probably sesion disconnected, will be removed later
-                if (wrote != bufferLen)
+                try
                 {
-                    utils::log("[transport] could not send whole message to session #%d (%d/%d)", //
-                               it->getId(),
-                               wrote,
-                               bufferLen);
+                    wrote = asio::write(sock, buf, err);
+                }
+                catch (...)
+                {
+                    // got some error, probably peer disconnected already...
+                    it->invalidate();
                     continue;
                 }
+
+                if (err == asio::error::eof)
+                {
+                    it->invalidate();
+                    continue;
+                }
+                else if (err)
+                {
+                    utils::log("[transport] WRITE ERROR: %s, %d to session: #%d", //
+                               err.message().c_str(),
+                               err.value(),
+                               it->getId());
+                    it->invalidate();
+                    continue;
+                }
+                else
+                {
+                    // probably sesion disconnected, will be removed later
+                    if (wrote != bufferLen)
+                    {
+                        utils::log(
+                            "[transport] could not send whole message to session #%d (%d/%d)", //
+                            it->getId(),
+                            wrote,
+                            bufferLen);
+                        continue;
+                    }
+                }
             }
-        }
-    }
+        });
 
     return true;
 }
@@ -206,6 +208,8 @@ std::weak_ptr<Session> DataTransport::receiveBlocking(uint8_t *const buffer,
     constexpr uint64_t kLoopWaitTimeMs = 100U;
     uint64_t totalWaitTime = 0U;
 
+    std::weak_ptr<Session> retVal{};
+
     while (true)
     {
         const bool timeoutArmed = (timeoutMs != 0U);
@@ -215,23 +219,30 @@ std::weak_ptr<Session> DataTransport::receiveBlocking(uint8_t *const buffer,
             return std::weak_ptr<Session>{};
         }
 
-        {
-            std::lock_guard<std::mutex> l{mSessionsMutex};
-            for (auto &it : mSessions)
-            {
-                const bool recvOk = it->getData(buffer, bufferSizeMax, bufferReceivedLen);
-                if (recvOk)
+        mSessions.access(                 //
+            [&](SessionsVector &sessions) //
+            {                             //
+                for (auto &it : sessions)
                 {
-                    return it;
+                    const bool recvOk = it->getData(buffer, bufferSizeMax, bufferReceivedLen);
+                    if (recvOk)
+                    {
+                        retVal = it;
+                        break;
+                    }
                 }
-            }
+            });
+
+        if (retVal.lock())
+        {
+            break;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(kLoopWaitTimeMs));
         totalWaitTime += kLoopWaitTimeMs;
     }
 
-    return std::weak_ptr<Session>{};
+    return retVal;
 }
 
 void DataTransport::setTransportMode(const DataTransport::Mode newMode)
@@ -270,10 +281,11 @@ void DataTransport::acceptHandler()
                     std::move(socket));
                 session->start();
 
-                {
-                    std::lock_guard<std::mutex> l{mSessionsMutex};
-                    mSessions.push_back(std::move(session));
-                }
+                mSessions.access(                 //
+                    [&](SessionsVector &sessions) //
+                    {                             //
+                        sessions.push_back(std::move(session));
+                    });
 
                 if (mOnConnectHandler)
                 {
@@ -322,15 +334,16 @@ void DataTransport::invalidatedSessionsCollect()
                 return false;
             };
 
-        {
-            std::lock_guard<std::mutex> lk{mSessionsMutex};
-            mSessions.erase(    //
-                std::remove_if( //
-                    mSessions.begin(),
-                    mSessions.end(),
-                    removeCondition),
-                mSessions.end());
-        }
+        mSessions.access(                 //
+            [&](SessionsVector &sessions) //
+            {                             //
+                sessions.erase(           //
+                    std::remove_if(       //
+                        sessions.begin(),
+                        sessions.end(),
+                        removeCondition),
+                    sessions.end());
+            });
 
         if (removedSessions > 0)
         {

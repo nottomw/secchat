@@ -1,9 +1,10 @@
 #pragma once
 
+#include "MutexProtectedData.hpp"
+
 #include <asio.hpp>
 #include <cstdint>
 #include <deque>
-#include <mutex>
 
 class Session
 {
@@ -42,8 +43,8 @@ private:
     static IdType mGlobalSessionCounter;
     IdType mSessionId;
 
-    std::mutex mReceivedDataQueueMutex;
-    std::deque<ReceivedData> mReceivedDataQueue;
+    using ReceivedDataQueue = std::deque<ReceivedData>;
+    MutexProtectedData<ReceivedDataQueue> mReceivedDataQueue;
 
     bool getData( //
         uint8_t *const buffer,

@@ -1,10 +1,10 @@
 #pragma once
 
+#include "MutexProtectedData.hpp"
 #include "Session.hpp"
 
 #include <asio.hpp>
 #include <cstdint>
-#include <mutex>
 
 class DataTransport
 {
@@ -22,7 +22,9 @@ public:
     void connect(const std::string &ipAddr, const uint16_t port);
 
     bool sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen);
-    bool sendBlocking(const uint8_t *const buffer, const uint32_t bufferLen, std::shared_ptr<Session> session);
+    bool sendBlocking(const uint8_t *const buffer,
+                      const uint32_t bufferLen,
+                      std::shared_ptr<Session> session);
 
     std::weak_ptr<Session> receiveBlocking(uint8_t *const buffer, //
                                            const uint32_t bufferSizeMax,
@@ -47,8 +49,8 @@ private:
     std::shared_ptr<asio::ip::tcp::acceptor> mAcceptor;
     std::shared_ptr<asio::ip::tcp::resolver> mResolver;
 
-    std::mutex mSessionsMutex;
-    std::vector<std::shared_ptr<Session>> mSessions;
+    using SessionsVector = std::vector<std::shared_ptr<Session>>;
+    MutexProtectedData<SessionsVector> mSessions;
 
     FnOnConnectHandler mOnConnectHandler;
     FnOnDisconnectHandler mOnDisconnectHandler;

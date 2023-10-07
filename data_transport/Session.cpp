@@ -33,10 +33,8 @@ void Session::start()
                 ReceivedData data{length};
                 memcpy(data.mBuffer.get(), mRawBuffer, length);
 
-                {
-                    std::lock_guard<std::mutex> l{mReceivedDataQueueMutex};
-                    mReceivedDataQueue.push_back(std::move(data));
-                }
+                mReceivedDataQueue.access(
+                    [&data](ReceivedDataQueue &q) { q.push_back(std::move(data)); });
 
                 start(); // continue receiving
             }
@@ -83,24 +81,27 @@ bool Session::getData(uint8_t *const buffer,
                       const uint32_t bufferSizeMax,
                       uint32_t *const bufferReceivedLen)
 {
-    {
-        std::lock_guard<std::mutex> l{mReceivedDataQueueMutex};
-        if (mReceivedDataQueue.size() > 0)
+    bool result = false;
+
+    mReceivedDataQueue.access(        //
+        [&](ReceivedDataQueue &queue) //
         {
-            ReceivedData &dat = mReceivedDataQueue.front();
+            if (queue.size() > 0)
+            {
+                ReceivedData &dat = queue.front();
 
-            assert(dat.mBufferLen < bufferSizeMax);
+                assert(dat.mBufferLen < bufferSizeMax);
 
-            memcpy(buffer, dat.mBuffer.get(), dat.mBufferLen);
-            *bufferReceivedLen = dat.mBufferLen;
+                memcpy(buffer, dat.mBuffer.get(), dat.mBufferLen);
+                *bufferReceivedLen = dat.mBufferLen;
 
-            mReceivedDataQueue.pop_front();
+                queue.pop_front();
 
-            return true;
-        }
-    }
+                result = true;
+            }
+        });
 
-    return false;
+    return result;
 }
 
 Session::ReceivedData::ReceivedData(const size_t bufferLen)
