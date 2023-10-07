@@ -1,15 +1,37 @@
 #pragma once
 
-#include <mutex>
 #include <functional>
-
-// TODO: use MutexProtectedData when needed
+#include <mutex>
 
 template <typename TData>
 class MutexProtectedData
 {
 public:
     using AccessorFn = std::function<void(TData &data)>;
+
+    MutexProtectedData(const MutexProtectedData &oth)
+        : mData{oth.mData}
+    {
+    }
+
+    MutexProtectedData(MutexProtectedData &&oth)
+        : mData{oth.mData}
+    {
+    }
+
+    MutexProtectedData &operator=(const MutexProtectedData &oth)
+    {
+        mData = oth;
+        return *this;
+    }
+
+    MutexProtectedData &operator=(MutexProtectedData &&oth)
+    {
+        mData = oth;
+        return *this;
+    }
+
+    ~MutexProtectedData() = default;
 
     template <typename... Ts>
     MutexProtectedData(Ts... types)
